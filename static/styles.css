@@ -1,0 +1,452 @@
+:root {
+  color-scheme: dark;
+  --bg: #080a0d;
+  --panel: rgb(12 16 20 / 0.72);
+  --panel-strong: rgb(28 34 41 / 0.9);
+  --text: #f6f2e8;
+  --muted: #b9c0c8;
+  --accent: #2fbf9b;
+  --accent-strong: #f2b84b;
+  --border: rgb(255 255 255 / 0.16);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+}
+
+button {
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 14px;
+  background: var(--panel-strong);
+  color: var(--text);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.app-shell,
+.capture-screen,
+.review-screen {
+  min-height: 100vh;
+}
+
+.capture-screen {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto 1fr auto auto;
+  gap: 14px;
+  padding: 18px;
+}
+
+#camera {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+}
+
+.capture-screen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgb(0 0 0 / 0.58), transparent 28%, transparent 62%, rgb(0 0 0 / 0.72)),
+    linear-gradient(90deg, rgb(0 0 0 / 0.25), transparent 22%, transparent 78%, rgb(0 0 0 / 0.25));
+  pointer-events: none;
+}
+
+.capture-top,
+.direction-card,
+.capture-controls,
+.status,
+.capture-reticle {
+  position: relative;
+  z-index: 1;
+}
+
+.capture-top,
+.review-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 14px;
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.45rem;
+  line-height: 1.05;
+}
+
+.counter,
+.coverage {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.48);
+  border: 1px solid var(--border);
+  padding: 8px 12px;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.capture-reticle {
+  align-self: stretch;
+  min-height: 120px;
+  pointer-events: none;
+}
+
+.guide {
+  position: absolute;
+  top: 12%;
+  bottom: 12%;
+  width: 16%;
+  border-color: rgb(47 191 155 / 0.75);
+}
+
+.guide-left {
+  left: 30%;
+  border-left: 2px dashed;
+}
+
+.guide-right {
+  right: 30%;
+  border-right: 2px dashed;
+}
+
+.arrow {
+  position: absolute;
+  width: 0;
+  height: 0;
+  filter: drop-shadow(0 0 18px rgb(47 191 155 / 0.75));
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.arrow.active {
+  opacity: 1;
+}
+
+.arrow-left {
+  left: 20px;
+  top: 50%;
+  border-top: 26px solid transparent;
+  border-bottom: 26px solid transparent;
+  border-right: 42px solid var(--accent);
+  transform: translateY(-50%);
+}
+
+.arrow-right {
+  right: 20px;
+  top: 50%;
+  border-top: 26px solid transparent;
+  border-bottom: 26px solid transparent;
+  border-left: 42px solid var(--accent);
+  transform: translateY(-50%);
+}
+
+.arrow-up {
+  top: 20px;
+  left: 50%;
+  border-left: 26px solid transparent;
+  border-right: 26px solid transparent;
+  border-bottom: 42px solid var(--accent-strong);
+  transform: translateX(-50%);
+}
+
+.arrow-down {
+  bottom: 20px;
+  left: 50%;
+  border-left: 26px solid transparent;
+  border-right: 26px solid transparent;
+  border-top: 42px solid var(--accent-strong);
+  transform: translateX(-50%);
+}
+
+.direction-card {
+  display: grid;
+  gap: 11px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  backdrop-filter: blur(14px);
+}
+
+.guide-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.guide-label {
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+#headingReadout {
+  display: block;
+  font-size: 1rem;
+}
+
+.row-selector,
+.row-progress {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.row-selector {
+  display: none;
+}
+
+.row-button {
+  min-height: 34px;
+  padding: 0 8px;
+  font-size: 0.82rem;
+}
+
+.row-button.active {
+  border-color: var(--accent);
+  background: rgb(18 60 52 / 0.92);
+}
+
+.row-button.stitched::after {
+  content: " ok";
+  color: var(--accent);
+}
+
+.row-meter {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.row-meter span {
+  overflow: hidden;
+  height: 6px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.14);
+}
+
+.row-meter span::before {
+  content: "";
+  display: block;
+  width: var(--fill);
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+
+.angle-ring {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.angle-chip {
+  min-height: 15px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.45);
+}
+
+.angle-chip.covered {
+  border-color: rgb(47 191 155 / 0.72);
+  background: rgb(47 191 155 / 0.62);
+}
+
+.angle-chip.current {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
+}
+
+.next-angle,
+.status {
+  min-height: 38px;
+  margin: 0;
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.capture-controls {
+  display: flex;
+  justify-content: center;
+}
+
+.hidden-control {
+  display: none;
+}
+
+#startCamera,
+#doneCapture {
+  min-width: min(320px, 90vw);
+  min-height: 54px;
+  background: var(--accent);
+  color: #06231c;
+  font-size: 1rem;
+}
+
+#doneCapture {
+  background: var(--accent-strong);
+  color: #251704;
+}
+
+#captureShot {
+  background: var(--accent);
+  color: #06231c;
+}
+
+#stitchShots,
+#stitchRow {
+  background: var(--accent-strong);
+  color: #251704;
+}
+
+#autoCapture.active {
+  border-color: var(--accent);
+  background: rgb(18 60 52 / 0.92);
+}
+
+.status {
+  z-index: 1;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: rgb(0 0 0 / 0.46);
+  backdrop-filter: blur(12px);
+}
+
+.review-screen {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 14px;
+  padding: 18px;
+  background: #111418;
+}
+
+.viewer-360 {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #000;
+  cursor: grab;
+  touch-action: none;
+}
+
+.viewer-360:active {
+  cursor: grabbing;
+}
+
+.viewer-360 canvas,
+.viewer-360 img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.viewer-360 [hidden] {
+  display: none !important;
+}
+
+.viewer-360 img {
+  object-fit: fill;
+}
+
+.viewer-hud {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  z-index: 3;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 7px 10px;
+  background: rgb(0 0 0 / 0.48);
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 900;
+  pointer-events: none;
+}
+
+.strip {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  min-height: 94px;
+}
+
+.shot {
+  flex: 0 0 118px;
+  height: 82px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.empty-state {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .capture-screen,
+  .review-screen {
+    padding: 12px;
+  }
+
+  .capture-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .direction-card {
+    gap: 9px;
+    padding: 12px;
+  }
+}

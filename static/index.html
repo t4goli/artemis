@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>360 Surround Stitcher</title>
+    <link rel="stylesheet" href="/styles.css?v=guided-capture-15" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="capture-screen" id="captureScreen" aria-label="Camera capture">
+        <video id="camera" autoplay playsinline muted></video>
+        <canvas id="snapshotCanvas" hidden></canvas>
+
+        <div class="capture-top">
+          <div>
+            <p class="eyebrow">360 capture</p>
+            <h1>Surround Stitcher</h1>
+          </div>
+          <div class="counter" id="counter">0 shots</div>
+        </div>
+
+        <div class="capture-reticle" aria-hidden="true">
+          <div class="guide guide-left"></div>
+          <div class="guide guide-right"></div>
+          <div class="arrow arrow-left" id="arrowLeft"></div>
+          <div class="arrow arrow-right" id="arrowRight"></div>
+          <div class="arrow arrow-up" id="arrowUp"></div>
+          <div class="arrow arrow-down" id="arrowDown"></div>
+        </div>
+
+        <div class="direction-card">
+          <div class="guide-header">
+            <div>
+              <p class="guide-label">Current row</p>
+              <strong id="headingReadout">Heading unavailable</strong>
+            </div>
+            <div class="coverage" id="coverageReadout">0 / 108</div>
+          </div>
+          <div class="row-selector" id="rowSelector" aria-label="Capture row">
+            <button class="row-button active" type="button" data-row="level">Level</button>
+            <button class="row-button" type="button" data-row="up">Ceiling</button>
+            <button class="row-button" type="button" data-row="down">Floor</button>
+          </div>
+          <div class="row-progress" id="rowProgress"></div>
+          <div class="angle-ring" id="angleRing" aria-label="Covered and missing angles"></div>
+          <p class="next-angle" id="nextAngle">Start with Level. Rotate slowly from one spot.</p>
+        </div>
+
+        <div class="capture-controls">
+          <button id="startCamera" type="button">Start camera</button>
+          <button id="doneCapture" type="button" hidden>Done</button>
+          <button id="enableGuide" class="hidden-control" type="button" disabled>Enable guidance</button>
+          <button id="captureShot" class="hidden-control" type="button" disabled>Capture</button>
+          <button id="autoCapture" class="hidden-control" type="button" disabled>Sweep capture</button>
+          <button id="stitchRow" class="hidden-control" type="button" disabled>Stitch row</button>
+          <button id="stitchShots" class="hidden-control" type="button" disabled>Build 360</button>
+          <button id="openReview" class="hidden-control" type="button" disabled>Review</button>
+          <button id="clearShots" class="hidden-control" type="button" disabled>Clear</button>
+        </div>
+
+        <p class="status" id="status">Start the camera, then follow the on-screen row direction.</p>
+      </section>
+
+      <section class="review-screen" id="reviewScreen" aria-label="360 review" hidden>
+        <div class="review-top">
+          <button id="backToCapture" type="button">Camera</button>
+          <button id="finalizeCapture" type="button">Finalize</button>
+          <div>
+            <p class="eyebrow">Review</p>
+            <h1>360 Preview</h1>
+          </div>
+        </div>
+
+        <div class="viewer-360" id="viewer360" tabindex="0" aria-label="Drag to look around the stitched 360 view">
+          <canvas id="sphereCanvas"></canvas>
+          <canvas id="coverageCanvas" hidden></canvas>
+          <img id="coverageImage" alt="Live 360 photo coverage map" hidden />
+          <div class="viewer-hud" id="viewerHud">Drag to look around</div>
+        </div>
+
+        <div class="strip" id="shotStrip"></div>
+        <img id="panorama" alt="Flat stitched panorama" hidden />
+        <div class="empty-state" id="emptyState">Captured areas appear in the 360 preview. Black means missing.</div>
+      </section>
+    </main>
+
+    <script src="/app.js?v=guided-capture-15"></script>
+  </body>
+</html>
