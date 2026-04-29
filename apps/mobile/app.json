@@ -13,7 +13,10 @@
       "backgroundColor": "#0b0f14"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Artemis uses the camera to capture private 360 memories."
+      }
     },
     "android": {
       "adaptiveIcon": {

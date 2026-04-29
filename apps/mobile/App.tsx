@@ -1,3 +1,4 @@
+import { CameraView, useCameraPermissions } from "expo-camera";
 import { StatusBar } from "expo-status-bar";
 import { useMemo, useState } from "react";
 import { SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
@@ -17,6 +18,7 @@ const initialTargets: Target[] = Array.from({ length: 16 }, (_, index) => ({
 }));
 
 export default function App() {
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [captureName, setCaptureName] = useState("My memory");
   const [isCapturing, setIsCapturing] = useState(false);
   const [targets, setTargets] = useState(initialTargets);
@@ -32,7 +34,12 @@ export default function App() {
     return "Turn slowly until the circle meets the red dot.";
   }, [activeTarget]);
 
-  function beginCapture() {
+  async function beginCapture() {
+    if (!cameraPermission?.granted) {
+      const permission = await requestCameraPermission();
+      if (!permission.granted) return;
+    }
+
     setTargets(initialTargets);
     setActiveTargetIndex(0);
     setIsAligned(false);
@@ -98,10 +105,21 @@ export default function App() {
     <SafeAreaView style={styles.captureScreen}>
       <StatusBar style="light" />
       <View style={styles.cameraPreview}>
-        <View style={styles.blackPreview}>
-          <Text style={styles.previewText}>Uncaptured view</Text>
-          <Text style={styles.previewSubtext}>Camera preview and captured photo texture will render here.</Text>
-        </View>
+        {cameraPermission?.granted ? (
+          <CameraView
+            style={styles.liveCamera}
+            facing="back"
+            mode="picture"
+            autofocus="on"
+            selectedLens="builtInWideAngleCamera"
+            responsiveOrientationWhenOrientationLocked
+          />
+        ) : (
+          <View style={styles.blackPreview}>
+            <Text style={styles.previewText}>Camera permission needed</Text>
+            <Text style={styles.previewSubtext}>Exit and tap Begin capture to allow camera access.</Text>
+          </View>
+        )}
 
         <View style={styles.aimLayer}>
           <View style={[styles.targetCircle, isAligned && styles.targetCircleAligned]}>
@@ -256,6 +274,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     overflow: "hidden",
     backgroundColor: "#000000",
+  },
+  liveCamera: {
+    ...StyleSheet.absoluteFillObject,
   },
   blackPreview: {
     flex: 1,
