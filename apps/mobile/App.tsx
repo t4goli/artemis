@@ -5,6 +5,7 @@ import {
   Animated,
   Dimensions,
   Easing,
+  Image,
   SafeAreaView,
   StyleSheet,
   Text,
@@ -133,12 +134,15 @@ export default function App() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [gravityZ, setGravityZ] = useState(0);
+  const [firstFrameUri, setFirstFrameUri] = useState("");
   const [holdProgress, setHoldProgress] = useState(0);
   const [showNudge, setShowNudge] = useState(false);
   const [motionWarning, setMotionWarning] = useState(false);
 
   const originRef = useRef<MotionOrigin | null>(null);
+  const cameraRef = useRef<CameraView | null>(null);
   const holdStartRef = useRef<number | null>(null);
+  const completingRef = useRef(false);
   const activeIndexRef = useRef(0);
   const capturedIdsRef = useRef<number[]>([]);
   const pulse = useRef(new Animated.Value(0)).current;
@@ -274,7 +278,7 @@ export default function App() {
 
       if (nextProgress >= 1) {
         holdStartRef.current = null;
-        completeCurrentTarget();
+        void completeCurrentTarget();
       }
     }, 40);
 
@@ -291,6 +295,7 @@ export default function App() {
     originRef.current = null;
     setPan({ x: 0, y: 0 });
     setGravityZ(0);
+    setFirstFrameUri("");
     setCapturedIds([]);
     setActiveIndex(0);
     setHoldProgress(0);
@@ -305,12 +310,34 @@ export default function App() {
     setShowNudge(false);
   }
 
-  function completeCurrentTarget() {
+  async function completeCurrentTarget() {
+    if (completingRef.current) return;
+    completingRef.current = true;
+
     const currentIndex = activeIndexRef.current;
     const currentTarget = TARGETS[currentIndex];
     const currentCaptured = capturedIdsRef.current;
 
-    if (!currentTarget || currentCaptured.includes(currentTarget.id)) return;
+    if (!currentTarget || currentCaptured.includes(currentTarget.id)) {
+      completingRef.current = false;
+      return;
+    }
+
+    if (currentIndex === 0 && !firstFrameUri) {
+      try {
+        const picture = await cameraRef.current?.takePictureAsync({
+          quality: 0.9,
+          skipProcessing: false,
+          shutterSound: false,
+        });
+
+        if (picture?.uri) {
+          setFirstFrameUri(picture.uri);
+        }
+      } catch {
+        // Keep the capture flow moving if the camera snapshot is briefly unavailable.
+      }
+    }
 
     const nextCaptured = [...currentCaptured, currentTarget.id];
     capturedIdsRef.current = nextCaptured;
@@ -320,18 +347,24 @@ export default function App() {
     if (nextCaptured.length >= TARGETS.length) {
       setQueuedName(captureName.trim() || "Untitled capture");
       setIsCapturing(false);
+      completingRef.current = false;
       return;
     }
 
     const nextIndex = TARGETS.findIndex((target) => !nextCaptured.includes(target.id));
     activeIndexRef.current = nextIndex === -1 ? currentIndex : nextIndex;
     setActiveIndex(nextIndex === -1 ? currentIndex : nextIndex);
+    completingRef.current = false;
   }
 
   if (isCapturing) {
     return (
       <View style={styles.captureScreen}>
-        <CameraView style={styles.cameraFrame} facing="back" autofocus="on" />
+        {firstFrameUri ? (
+          <Image source={{ uri: firstFrameUri }} style={styles.cameraFrame} />
+        ) : (
+          <CameraView ref={cameraRef} style={styles.cameraFrame} facing="back" autofocus="on" />
+        )}
 
         <View style={styles.targetLayer} pointerEvents="none">
           {visibleTargets.map((target) => {
