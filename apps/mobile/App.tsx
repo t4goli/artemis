@@ -38,7 +38,10 @@ const FIRST_DOT_FAR_DISTANCE = 260;
 const FIRST_DOT_MAX_SIDE_DRIFT = 18;
 const FIRST_DOT_CENTER_DEADZONE = 0.16;
 const GRAVITY = 9.80665;
-const PHOTO_EXIT_ANGLE = 78;
+const PHOTO_HALF_FOV_X = 42;
+const PHOTO_HALF_FOV_Y = 34;
+const PHOTO_PIXELS_PER_YAW_DEGREE = CAMERA_FRAME_WIDTH / PHOTO_HALF_FOV_X;
+const PHOTO_PIXELS_PER_PITCH_DEGREE = CAMERA_FRAME_HEIGHT / PHOTO_HALF_FOV_Y;
 
 type CaptureTarget = {
   id: number;
@@ -426,10 +429,9 @@ export default function App() {
       pitch: frozenMotionDelta.pitch - firstFrameMotionDelta.pitch,
       roll: frozenMotionDelta.roll - firstFrameMotionDelta.roll,
     };
-    const planeYaw = deadzone(frozenAngleOffset.yaw, 0.8);
-    const planePitch = deadzone(frozenAngleOffset.pitch, 0.6);
-    const planeRoll = deadzone(frozenAngleOffset.roll, 5);
-    const planeVisible = Math.abs(planeYaw) < PHOTO_EXIT_ANGLE && Math.abs(planePitch) < PHOTO_EXIT_ANGLE;
+    const photoYaw = deadzone(frozenAngleOffset.yaw, 0.8);
+    const photoPitch = deadzone(frozenAngleOffset.pitch, 0.6);
+    const photoVisible = Math.abs(photoYaw) < PHOTO_HALF_FOV_X * 1.45 && Math.abs(photoPitch) < PHOTO_HALF_FOV_Y * 1.45;
 
     return (
       <View style={styles.captureScreen}>
@@ -440,14 +442,10 @@ export default function App() {
               style={[
                 styles.capturedPhotoPlane,
                 {
-                  opacity: planeVisible ? 1 : 0,
+                  opacity: photoVisible ? 1 : 0,
                   transform: [
-                    { perspective: 880 },
-                    { translateX: clamp(-planeYaw * 5.2, -420, 420) },
-                    { translateY: clamp(planePitch * 5.4, -360, 360) },
-                    { rotateY: `${clamp(-planeYaw * 0.78, -58, 58)}deg` },
-                    { rotateX: `${clamp(planePitch * 0.78, -52, 52)}deg` },
-                    { rotateZ: `${clamp(planeRoll * 0.05, -2, 2)}deg` },
+                    { translateX: clamp(photoYaw * PHOTO_PIXELS_PER_YAW_DEGREE, -SCREEN_WIDTH * 1.4, SCREEN_WIDTH * 1.4) },
+                    { translateY: clamp(photoPitch * PHOTO_PIXELS_PER_PITCH_DEGREE, -SCREEN_HEIGHT, SCREEN_HEIGHT) },
                   ],
                 },
               ]}
