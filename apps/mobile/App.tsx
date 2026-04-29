@@ -154,12 +154,14 @@ export default function App() {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [gravityZ, setGravityZ] = useState(0);
   const [firstFrameUri, setFirstFrameUri] = useState("");
+  const [firstFramePan, setFirstFramePan] = useState({ x: 0, y: 0 });
   const [holdProgress, setHoldProgress] = useState(0);
   const [showNudge, setShowNudge] = useState(false);
   const [motionWarning, setMotionWarning] = useState(false);
 
   const originRef = useRef<MotionOrigin | null>(null);
   const cameraRef = useRef<CameraView | null>(null);
+  const panRef = useRef({ x: 0, y: 0 });
   const holdStartRef = useRef<number | null>(null);
   const completingRef = useRef(false);
   const activeIndexRef = useRef(0);
@@ -231,6 +233,10 @@ export default function App() {
   useEffect(() => {
     capturedIdsRef.current = capturedIds;
   }, [capturedIds]);
+
+  useEffect(() => {
+    panRef.current = pan;
+  }, [pan]);
 
   useEffect(() => {
     if (!isCapturing) return;
@@ -315,6 +321,7 @@ export default function App() {
     setPan({ x: 0, y: 0 });
     setGravityZ(0);
     setFirstFrameUri("");
+    setFirstFramePan({ x: 0, y: 0 });
     setCapturedIds([]);
     setActiveIndex(0);
     setHoldProgress(0);
@@ -351,6 +358,7 @@ export default function App() {
         });
 
         if (picture?.uri) {
+          setFirstFramePan(panRef.current);
           setFirstFrameUri(picture.uri);
         }
       } catch {
@@ -377,6 +385,11 @@ export default function App() {
   }
 
   if (isCapturing) {
+    const frozenFrameOffset = {
+      x: pan.x - firstFramePan.x,
+      y: pan.y - firstFramePan.y,
+    };
+
     return (
       <View style={styles.captureScreen}>
         {firstFrameUri ? (
@@ -388,10 +401,9 @@ export default function App() {
                 {
                   transform: [
                     { perspective: 900 },
-                    { translateX: clamp(-pan.x * 0.32, -110, 110) },
-                    { translateY: clamp(-pan.y * 0.2, -90, 90) },
-                    { rotateZ: `${clamp(pan.x * 0.035, -14, 14)}deg` },
-                    { scale: 1.08 },
+                    { translateX: frozenFrameOffset.x },
+                    { translateY: frozenFrameOffset.y },
+                    { rotateZ: `${clamp(frozenFrameOffset.x * 0.025, -18, 18)}deg` },
                   ],
                 },
               ]}
@@ -631,6 +643,7 @@ const styles = StyleSheet.create({
     height: "108%",
     left: "-4%",
     position: "absolute",
+    resizeMode: "cover",
     top: "-4%",
     width: "108%",
   },
