@@ -248,8 +248,8 @@ export default function App() {
     }
 
     const nextPan = {
-      x: frozenPanRef.current.x + (pan.x - frozenPanRef.current.x) * 0.16,
-      y: frozenPanRef.current.y + (pan.y - frozenPanRef.current.y) * 0.16,
+      x: frozenPanRef.current.x + (pan.x - frozenPanRef.current.x) * 0.07,
+      y: frozenPanRef.current.y + (pan.y - frozenPanRef.current.y) * 0.07,
     };
 
     frozenPanRef.current = nextPan;
@@ -420,12 +420,12 @@ export default function App() {
                 styles.frozenFrame,
                 {
                   transform: [
-                    { perspective: 700 },
-                    { translateX: -frozenFrameOffset.x * 1.25 },
-                    { translateY: -frozenFrameOffset.y * 0.85 },
-                    { rotateY: `${clamp(frozenFrameOffset.x * 0.12, -46, 46)}deg` },
-                    { rotateX: `${clamp(-frozenFrameOffset.y * 0.08, -32, 32)}deg` },
-                    { rotateZ: `${clamp(-frozenFrameOffset.x * 0.012, -8, 8)}deg` },
+                    { perspective: 900 },
+                    { translateX: -frozenFrameOffset.x * 0.72 },
+                    { translateY: frozenFrameOffset.y * 0.72 },
+                    { rotateY: `${clamp(frozenFrameOffset.x * 0.045, -22, 22)}deg` },
+                    { rotateX: `${clamp(frozenFrameOffset.y * 0.04, -18, 18)}deg` },
+                    { rotateZ: `${clamp(-frozenFrameOffset.x * 0.004, -3, 3)}deg` },
                   ],
                 },
               ]}
