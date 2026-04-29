@@ -39,7 +39,7 @@ const FIRST_DOT_MAX_SIDE_DRIFT = 18;
 const FIRST_DOT_CENTER_DEADZONE = 0.16;
 const GRAVITY = 9.80665;
 const PHOTO_HALF_FOV_X = 42;
-const PHOTO_HALF_FOV_Y = 34;
+const PHOTO_HALF_FOV_Y = 30;
 const PHOTO_PIXELS_PER_YAW_DEGREE = CAMERA_FRAME_WIDTH / PHOTO_HALF_FOV_X;
 const PHOTO_PIXELS_PER_PITCH_DEGREE = CAMERA_FRAME_HEIGHT / PHOTO_HALF_FOV_Y;
 
@@ -430,8 +430,8 @@ export default function App() {
       roll: frozenMotionDelta.roll - firstFrameMotionDelta.roll,
     };
     const photoYaw = deadzone(frozenAngleOffset.yaw, 0.8);
-    const photoPitch = deadzone(frozenAngleOffset.pitch, 0.6);
-    const photoVisible = Math.abs(photoYaw) < PHOTO_HALF_FOV_X * 1.45 && Math.abs(photoPitch) < PHOTO_HALF_FOV_Y * 1.45;
+    const photoPitch = deadzone(frozenAngleOffset.pitch, 0.5);
+    const photoVisible = Math.abs(photoYaw) < PHOTO_HALF_FOV_X * 1.45 && Math.abs(photoPitch) < PHOTO_HALF_FOV_Y * 1.35;
 
     return (
       <View style={styles.captureScreen}>
@@ -445,7 +445,7 @@ export default function App() {
                   opacity: photoVisible ? 1 : 0,
                   transform: [
                     { translateX: clamp(photoYaw * PHOTO_PIXELS_PER_YAW_DEGREE, -SCREEN_WIDTH * 1.4, SCREEN_WIDTH * 1.4) },
-                    { translateY: clamp(photoPitch * PHOTO_PIXELS_PER_PITCH_DEGREE, -SCREEN_HEIGHT, SCREEN_HEIGHT) },
+                    { translateY: clamp(-photoPitch * PHOTO_PIXELS_PER_PITCH_DEGREE, -SCREEN_HEIGHT, SCREEN_HEIGHT) },
                   ],
                 },
               ]}
