@@ -126,6 +126,7 @@ export default function App() {
   const isLocked = activeDistance <= LOCK_RADIUS;
   const capturedCount = capturedIds.length;
   const progress = capturedCount / TARGETS.length;
+  const visibleTargets = capturedCount === 0 ? [activeTarget] : TARGETS;
 
   const pulseStyle = useMemo(
     () => ({
@@ -297,7 +298,8 @@ export default function App() {
         <CameraView style={styles.cameraFrame} facing="back" autofocus="on" />
 
         <View style={styles.targetLayer} pointerEvents="none">
-          {TARGETS.map((target, index) => {
+          {visibleTargets.map((target) => {
+            const index = TARGETS.findIndex((item) => item.id === target.id);
             const position = targetScreenPosition(target, pan);
             const captured = capturedIds.includes(target.id);
             const current = index === activeIndex;
