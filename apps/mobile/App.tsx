@@ -44,7 +44,7 @@ export default function App() {
   }, [activeTarget, capturedCount, deviceRotation, targets]);
   const activeProjection = useMemo(() => projectTarget(activeTarget, deviceRotation), [activeTarget, deviceRotation]);
   const alignmentDistance = Math.hypot(activeProjection.x, activeProjection.y);
-  const isAligned = alignmentDistance < 70;
+  const isAligned = alignmentDistance < 118;
   const guidance = useMemo(() => {
     if (!activeTarget) return "All targets captured. Ready to upload.";
     if (activeTarget.pitch === "up") return "Tilt up and line up with the red dot.";
@@ -218,7 +218,7 @@ export default function App() {
                 style={[
                   styles.targetDot,
                   target.id === activeTarget?.id && styles.activeTargetDot,
-                  target.id === activeTarget?.id && alignmentDistance < 120 && styles.nearTargetDot,
+                  target.id === activeTarget?.id && alignmentDistance < 170 && styles.nearTargetDot,
                   target.id === activeTarget?.id && isAligned && styles.alignedTargetDot,
                   { transform: [{ translateX: projection.x }, { translateY: projection.y }] },
                 ]}
@@ -268,12 +268,12 @@ function projectTarget(target: Target | undefined, rotation: { yaw: number; pitc
     up: 42,
     down: -42,
   };
-  const rawX = shortestAngle(target.yaw - rotation.yaw) * 2.2;
-  const rawY = (rotation.pitch - pitchTargets[target.pitch]) * 2.1;
+  const rawX = shortestAngle(target.yaw - rotation.yaw) * 1.45;
+  const rawY = (rotation.pitch - pitchTargets[target.pitch]) * 1.55;
   return {
-    x: clamp(rawX, -125, 125),
-    y: clamp(rawY, -150, 150),
-    visible: Math.abs(rawX) < 190 && Math.abs(rawY) < 220,
+    x: clamp(rawX, -104, 104),
+    y: clamp(rawY, -122, 122),
+    visible: Math.abs(rawX) < 170 && Math.abs(rawY) < 190,
   };
 }
 
