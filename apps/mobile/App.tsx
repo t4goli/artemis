@@ -1,101 +1,151 @@
 import { StatusBar } from "expo-status-bar";
-import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useMemo, useState } from "react";
+import { SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
-type ScanPhase = {
-  id: string;
-  label: string;
-  detail: string;
-  captured: number;
-  total: number;
+type Target = {
+  id: number;
+  yaw: number;
+  pitch: "level" | "up" | "down";
+  captured: boolean;
 };
 
-const phases: ScanPhase[] = [
-  {
-    id: "level",
-    label: "Level sweep",
-    detail: "Rotate from one spot with the phone held upright.",
-    captured: 0,
-    total: 16,
-  },
-  {
-    id: "ceiling",
-    label: "Ceiling sweep",
-    detail: "Tilt up and connect the upper walls into the ceiling.",
-    captured: 0,
-    total: 8,
-  },
-  {
-    id: "floor",
-    label: "Floor sweep",
-    detail: "Tilt down and connect the lower walls into the floor.",
-    captured: 0,
-    total: 8,
-  },
-];
-
-const nextTargets = ["0", "22", "45", "67", "90", "112", "135", "157", "180", "202", "225", "247", "270", "292", "315", "337"];
+const initialTargets: Target[] = Array.from({ length: 16 }, (_, index) => ({
+  id: index,
+  yaw: Math.round(index * 22.5),
+  pitch: index < 10 ? "level" : index < 13 ? "up" : "down",
+  captured: false,
+}));
 
 export default function App() {
-  const totalCaptured = phases.reduce((sum, phase) => sum + phase.captured, 0);
-  const totalTargets = phases.reduce((sum, phase) => sum + phase.total, 0);
+  const [captureName, setCaptureName] = useState("My memory");
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [targets, setTargets] = useState(initialTargets);
+  const [activeTargetIndex, setActiveTargetIndex] = useState(0);
+  const [isAligned, setIsAligned] = useState(false);
+
+  const activeTarget = targets[activeTargetIndex];
+  const capturedCount = targets.filter((target) => target.captured).length;
+  const guidance = useMemo(() => {
+    if (!activeTarget) return "All targets captured. Ready to upload.";
+    if (activeTarget.pitch === "up") return "Tilt up and line up with the red dot.";
+    if (activeTarget.pitch === "down") return "Tilt down and line up with the red dot.";
+    return "Turn slowly until the circle meets the red dot.";
+  }, [activeTarget]);
+
+  function beginCapture() {
+    setTargets(initialTargets);
+    setActiveTargetIndex(0);
+    setIsAligned(false);
+    setIsCapturing(true);
+  }
+
+  function simulateAlignment() {
+    if (!activeTarget) return;
+    if (!isAligned) {
+      setIsAligned(true);
+      return;
+    }
+
+    setTargets((currentTargets) =>
+      currentTargets.map((target) => (target.id === activeTarget.id ? { ...target, captured: true } : target))
+    );
+    setActiveTargetIndex((index) => Math.min(index + 1, targets.length));
+    setIsAligned(false);
+  }
+
+  if (!isCapturing) {
+    return (
+      <SafeAreaView style={styles.screen}>
+        <StatusBar style="light" />
+        <View style={styles.captureTab}>
+          <Text style={styles.eyebrow}>Capture</Text>
+          <Text style={styles.title}>Artemis</Text>
+          <Text style={styles.subtitle}>Name a memory, then follow the dots to capture a full 360.</Text>
+
+          <View style={styles.formCard}>
+            <Text style={styles.label}>Capture name</Text>
+            <TextInput
+              value={captureName}
+              onChangeText={setCaptureName}
+              placeholder="Kitchen sunset"
+              placeholderTextColor="#687789"
+              style={styles.input}
+            />
+          </View>
+
+          <View style={styles.summaryCard}>
+            <Text style={styles.summaryTitle}>Capture plan</Text>
+            <Text style={styles.summaryText}>16 guided targets using the phone camera, motion tracking, and locked exposure.</Text>
+            <View style={styles.planRow}>
+              <Text style={styles.planValue}>10</Text>
+              <Text style={styles.planLabel}>level</Text>
+              <Text style={styles.planValue}>3</Text>
+              <Text style={styles.planLabel}>ceiling</Text>
+              <Text style={styles.planValue}>3</Text>
+              <Text style={styles.planLabel}>floor</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity style={styles.primaryButton} activeOpacity={0.88} onPress={beginCapture}>
+            <Text style={styles.primaryButtonText}>Begin capture</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <SafeAreaView style={styles.captureScreen}>
       <StatusBar style="light" />
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.header}>
-          <Text style={styles.eyebrow}>Private capture</Text>
-          <Text style={styles.title}>Artemis</Text>
-          <Text style={styles.subtitle}>Guided phone capture for full 360 memories.</Text>
+      <View style={styles.cameraPreview}>
+        <View style={styles.blackPreview}>
+          <Text style={styles.previewText}>Uncaptured view</Text>
+          <Text style={styles.previewSubtext}>Camera preview and captured photo texture will render here.</Text>
         </View>
 
-        <View style={styles.cameraPanel}>
-          <View style={styles.reticle}>
-            <Text style={styles.reticleText}>Camera preview</Text>
-            <Text style={styles.reticleSubtext}>AR pose + wide camera integration comes next</Text>
+        <View style={styles.aimLayer}>
+          <View style={[styles.targetCircle, isAligned && styles.targetCircleAligned]}>
+            <View style={[styles.innerTarget, isAligned && styles.innerTargetAligned]} />
           </View>
-          <View style={styles.captureHud}>
-            <Text style={styles.hudLabel}>Coverage</Text>
-            <Text style={styles.hudValue}>
-              {totalCaptured}/{totalTargets}
+          <View style={styles.deviceCircle} />
+        </View>
+
+        <View style={styles.captureTopBar}>
+          <View>
+            <Text style={styles.topLabel}>{captureName}</Text>
+            <Text style={styles.topValue}>
+              {capturedCount}/{targets.length} captured
             </Text>
           </View>
+          <TouchableOpacity onPress={() => setIsCapturing(false)} style={styles.smallButton}>
+            <Text style={styles.smallButtonText}>Exit</Text>
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.targetBand}>
-          {nextTargets.map((target, index) => (
-            <View key={target} style={[styles.targetDot, index === 0 && styles.targetDotActive]}>
-              <Text style={[styles.targetText, index === 0 && styles.targetTextActive]}>{target}</Text>
-            </View>
-          ))}
+        <View style={styles.guidanceCard}>
+          <Text style={styles.guidanceTitle}>{isAligned ? "Hold steady" : guidance}</Text>
+          <Text style={styles.guidanceText}>
+            {isAligned ? "Capturing once the target stays green." : `Target ${activeTargetIndex + 1}: ${activeTarget?.yaw ?? 0} degrees`}
+          </Text>
         </View>
+      </View>
 
-        <View style={styles.phaseList}>
-          {phases.map((phase, index) => (
-            <View key={phase.id} style={styles.phaseRow}>
-              <View style={[styles.phaseIndex, index === 0 && styles.phaseIndexActive]}>
-                <Text style={[styles.phaseIndexText, index === 0 && styles.phaseIndexTextActive]}>{index + 1}</Text>
-              </View>
-              <View style={styles.phaseCopy}>
-                <Text style={styles.phaseLabel}>{phase.label}</Text>
-                <Text style={styles.phaseDetail}>{phase.detail}</Text>
-              </View>
-              <Text style={styles.phaseCount}>
-                {phase.captured}/{phase.total}
-              </Text>
-            </View>
-          ))}
-        </View>
+      <View style={styles.targetMap}>
+        {targets.map((target, index) => (
+          <View
+            key={target.id}
+            style={[
+              styles.mapDot,
+              target.captured && styles.mapDotCaptured,
+              index === activeTargetIndex && styles.mapDotActive,
+            ]}
+          />
+        ))}
+      </View>
 
-        <View style={styles.pipeline}>
-          <Text style={styles.pipelineTitle}>Serious pipeline</Text>
-          <Text style={styles.pipelineText}>Capture frames with pose metadata, reject blur, upload privately, stitch on the backend, publish a public 360 viewer link.</Text>
-        </View>
-
-        <TouchableOpacity style={styles.primaryButton} activeOpacity={0.85}>
-          <Text style={styles.primaryButtonText}>Start private scan</Text>
-        </TouchableOpacity>
-      </ScrollView>
+      <TouchableOpacity style={styles.primaryButton} activeOpacity={0.88} onPress={simulateAlignment}>
+        <Text style={styles.primaryButtonText}>{isAligned ? "Simulate capture" : "Simulate align"}</Text>
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -105,177 +155,87 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#0b0f14",
   },
-  content: {
-    padding: 20,
+  captureTab: {
+    flex: 1,
+    padding: 22,
     gap: 18,
-  },
-  header: {
-    gap: 4,
+    justifyContent: "center",
   },
   eyebrow: {
-    color: "#8db8ff",
+    color: "#89b6ff",
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "800",
     letterSpacing: 0,
     textTransform: "uppercase",
   },
   title: {
     color: "#f7fbff",
-    fontSize: 36,
-    fontWeight: "800",
+    fontSize: 42,
+    fontWeight: "900",
     letterSpacing: 0,
   },
   subtitle: {
-    color: "#aeb8c5",
+    color: "#aab6c4",
     fontSize: 16,
-    lineHeight: 22,
+    lineHeight: 23,
   },
-  cameraPanel: {
-    minHeight: 360,
-    borderRadius: 8,
-    backgroundColor: "#131a22",
-    borderWidth: 1,
-    borderColor: "#263241",
-    overflow: "hidden",
-  },
-  reticle: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 24,
-    borderWidth: 1,
-    borderColor: "#3f8cff",
-    margin: 18,
-  },
-  reticleText: {
-    color: "#f7fbff",
-    fontSize: 22,
-    fontWeight: "800",
-  },
-  reticleSubtext: {
-    marginTop: 8,
-    color: "#8d99a8",
-    fontSize: 14,
-    textAlign: "center",
-  },
-  captureHud: {
-    position: "absolute",
-    right: 16,
-    top: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: "rgba(0, 0, 0, 0.45)",
-    alignItems: "flex-end",
-  },
-  hudLabel: {
-    color: "#98a6b8",
-    fontSize: 12,
-    fontWeight: "700",
-    textTransform: "uppercase",
-  },
-  hudValue: {
-    color: "#ffffff",
-    fontSize: 22,
-    fontWeight: "800",
-  },
-  targetBand: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+  formCard: {
     gap: 8,
   },
-  targetDot: {
-    minWidth: 44,
-    height: 36,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#17202b",
-    borderWidth: 1,
-    borderColor: "#2b3747",
-  },
-  targetDotActive: {
-    backgroundColor: "#f3c04d",
-    borderColor: "#f8d176",
-  },
-  targetText: {
-    color: "#9eabb9",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  targetTextActive: {
-    color: "#15120a",
-  },
-  phaseList: {
-    gap: 10,
-  },
-  phaseRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    padding: 14,
-    borderRadius: 8,
-    backgroundColor: "#111820",
-    borderWidth: 1,
-    borderColor: "#223040",
-  },
-  phaseIndex: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#223040",
-  },
-  phaseIndexActive: {
-    backgroundColor: "#8db8ff",
-  },
-  phaseIndexText: {
-    color: "#d7e2ef",
-    fontWeight: "800",
-  },
-  phaseIndexTextActive: {
-    color: "#06111f",
-  },
-  phaseCopy: {
-    flex: 1,
-    gap: 3,
-  },
-  phaseLabel: {
-    color: "#f6f8fb",
-    fontSize: 16,
-    fontWeight: "800",
-  },
-  phaseDetail: {
-    color: "#93a0af",
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  phaseCount: {
-    color: "#c7d3e1",
+  label: {
+    color: "#c8d3df",
     fontSize: 14,
     fontWeight: "800",
   },
-  pipeline: {
+  input: {
+    minHeight: 54,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    color: "#f7fbff",
+    backgroundColor: "#121a23",
+    borderWidth: 1,
+    borderColor: "#263443",
+    fontSize: 17,
+    fontWeight: "700",
+  },
+  summaryCard: {
     padding: 16,
     borderRadius: 8,
-    backgroundColor: "#16202a",
+    gap: 10,
+    backgroundColor: "#121a23",
     borderWidth: 1,
-    borderColor: "#2c3b4c",
-    gap: 6,
+    borderColor: "#263443",
   },
-  pipelineTitle: {
-    color: "#ffffff",
-    fontSize: 17,
-    fontWeight: "800",
+  summaryTitle: {
+    color: "#f7fbff",
+    fontSize: 18,
+    fontWeight: "900",
   },
-  pipelineText: {
-    color: "#a8b5c4",
+  summaryText: {
+    color: "#9eabb9",
     fontSize: 14,
     lineHeight: 20,
   },
+  planRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 8,
+  },
+  planValue: {
+    color: "#f3c04d",
+    fontSize: 24,
+    fontWeight: "900",
+  },
+  planLabel: {
+    color: "#aab6c4",
+    fontSize: 13,
+    fontWeight: "800",
+    marginRight: 6,
+  },
   primaryButton: {
-    minHeight: 54,
+    minHeight: 56,
+    marginHorizontal: 18,
+    marginBottom: 18,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
@@ -285,5 +245,144 @@ const styles = StyleSheet.create({
     color: "#141007",
     fontSize: 16,
     fontWeight: "900",
+  },
+  captureScreen: {
+    flex: 1,
+    backgroundColor: "#05070a",
+  },
+  cameraPreview: {
+    flex: 1,
+    margin: 10,
+    borderRadius: 8,
+    overflow: "hidden",
+    backgroundColor: "#000000",
+  },
+  blackPreview: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#000000",
+  },
+  previewText: {
+    color: "#e9eef5",
+    fontSize: 22,
+    fontWeight: "900",
+  },
+  previewSubtext: {
+    color: "#6f7b89",
+    fontSize: 14,
+    marginTop: 8,
+    textAlign: "center",
+    paddingHorizontal: 36,
+  },
+  aimLayer: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  targetCircle: {
+    width: 86,
+    height: 86,
+    borderRadius: 43,
+    borderWidth: 4,
+    borderColor: "#ff4d4d",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  targetCircleAligned: {
+    borderColor: "#45e07a",
+  },
+  innerTarget: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "#ff4d4d",
+  },
+  innerTargetAligned: {
+    backgroundColor: "#45e07a",
+  },
+  deviceCircle: {
+    position: "absolute",
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: "#ffffff",
+  },
+  captureTopBar: {
+    position: "absolute",
+    top: 14,
+    left: 14,
+    right: 14,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  topLabel: {
+    color: "#cbd7e5",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  topValue: {
+    color: "#ffffff",
+    fontSize: 22,
+    fontWeight: "900",
+  },
+  smallButton: {
+    minHeight: 38,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.12)",
+  },
+  smallButtonText: {
+    color: "#ffffff",
+    fontWeight: "900",
+  },
+  guidanceCard: {
+    position: "absolute",
+    left: 14,
+    right: 14,
+    bottom: 14,
+    padding: 16,
+    borderRadius: 8,
+    backgroundColor: "rgba(7, 10, 14, 0.82)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  guidanceTitle: {
+    color: "#ffffff",
+    fontSize: 20,
+    fontWeight: "900",
+  },
+  guidanceText: {
+    color: "#aeb8c5",
+    fontSize: 14,
+    marginTop: 4,
+  },
+  targetMap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+  },
+  mapDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "#17202b",
+    borderWidth: 1,
+    borderColor: "#59697a",
+  },
+  mapDotActive: {
+    borderColor: "#ff4d4d",
+    borderWidth: 3,
+  },
+  mapDotCaptured: {
+    backgroundColor: "#45e07a",
+    borderColor: "#45e07a",
   },
 });
