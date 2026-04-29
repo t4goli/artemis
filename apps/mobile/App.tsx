@@ -21,6 +21,7 @@ const DOT_SIZE = 50;
 const RETICLE_SIZE = 64;
 const LOCK_RADIUS = 42;
 const HOLD_MS = 1000;
+const FIRST_HOLD_MS = 2400;
 const MOTION_INTERVAL_MS = 40;
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -243,11 +244,6 @@ export default function App() {
   useEffect(() => {
     if (!isCapturing) return;
 
-    if (isFirstTarget && isLocked) {
-      completeCurrentTarget();
-      return;
-    }
-
     if (!isLocked) {
       holdStartRef.current = null;
       setHoldProgress(0);
@@ -260,7 +256,8 @@ export default function App() {
 
     const timer = setInterval(() => {
       const start = holdStartRef.current ?? Date.now();
-      const nextProgress = Math.min(1, (Date.now() - start) / HOLD_MS);
+      const holdDuration = isFirstTarget ? FIRST_HOLD_MS : HOLD_MS;
+      const nextProgress = Math.min(1, (Date.now() - start) / holdDuration);
       setHoldProgress(nextProgress);
 
       if (nextProgress >= 1) {
@@ -270,7 +267,7 @@ export default function App() {
     }, 40);
 
     return () => clearInterval(timer);
-  }, [isCapturing, isLocked, activeIndex]);
+  }, [isCapturing, isLocked, activeIndex, isFirstTarget]);
 
   async function beginCapture() {
     if (!permission?.granted) {
@@ -360,7 +357,7 @@ export default function App() {
                   styles.reticleFill,
                   {
                     transform: [{ scale: Math.max(0.02, holdProgress) }],
-                    opacity: holdProgress > 0 && !isFirstTarget ? 0.92 : 0,
+                    opacity: holdProgress > 0 ? 0.92 : 0,
                   },
                 ]}
               />
