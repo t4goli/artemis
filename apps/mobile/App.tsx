@@ -38,8 +38,8 @@ const FIRST_DOT_FAR_DISTANCE = 260;
 const FIRST_DOT_MAX_SIDE_DRIFT = 18;
 const FIRST_DOT_CENTER_DEADZONE = 0.16;
 const GRAVITY = 9.80665;
-const PHOTO_HALF_FOV_X = 42;
-const PHOTO_HALF_FOV_Y = 34;
+const PHOTO_HALF_FOV_X = 46;
+const PHOTO_HALF_FOV_Y = 38;
 const PHOTO_PIXELS_PER_YAW_DEGREE = CAMERA_FRAME_WIDTH / PHOTO_HALF_FOV_X;
 const PHOTO_PIXELS_PER_PITCH_DEGREE = CAMERA_FRAME_HEIGHT / PHOTO_HALF_FOV_Y;
 
@@ -429,10 +429,9 @@ export default function App() {
       pitch: frozenMotionDelta.pitch - firstFrameMotionDelta.pitch,
       roll: frozenMotionDelta.roll - firstFrameMotionDelta.roll,
     };
-    const photoYaw = deadzone(frozenAngleOffset.yaw, 0.8);
-    const rawPhotoPitch = deadzone(frozenAngleOffset.pitch, 0.6);
-    const photoPitch = rawPhotoPitch < 0 ? rawPhotoPitch * 0.45 : rawPhotoPitch;
-    const photoVisible = Math.abs(photoYaw) < PHOTO_HALF_FOV_X * 1.45 && Math.abs(photoPitch) < PHOTO_HALF_FOV_Y * 1.45;
+    const photoYaw = deadzone(frozenAngleOffset.yaw, 0.6);
+    const photoPitch = deadzone(frozenAngleOffset.pitch, 0.6);
+    const photoVisible = Math.abs(photoYaw) < PHOTO_HALF_FOV_X * 1.25 && Math.abs(photoPitch) < PHOTO_HALF_FOV_Y * 1.25;
 
     return (
       <View style={styles.captureScreen}>
