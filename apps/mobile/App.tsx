@@ -22,7 +22,7 @@ const RETICLE_SIZE = 64;
 const LOCK_RADIUS = 42;
 const FIRST_LOCK_RADIUS = 38;
 const HOLD_MS = 1000;
-const FIRST_HOLD_MS = 2400;
+const FIRST_HOLD_MS = 1350;
 const MOTION_INTERVAL_MS = 40;
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -344,6 +344,7 @@ export default function App() {
             const current = index === activeIndex;
             const dotSize = capturedCount === 0 && current ? firstDotSize(firstTargetVerticalDistance) : DOT_SIZE;
             const dotColor = motionWarning && !captured && !isFirstTarget ? RED : GREEN;
+            const hideFirstTargetDuringLoad = isFirstTarget && isLocked && holdProgress > 0;
             const dot = (
               <Animated.View
                 key={target.id}
@@ -356,7 +357,7 @@ export default function App() {
                     top: position.y - dotSize / 2,
                     width: dotSize,
                     backgroundColor: dotColor,
-                    opacity: captured ? 0.4 : 1,
+                    opacity: hideFirstTargetDuringLoad ? 0 : captured ? 0.4 : 1,
                   },
                   current && capturedCount > 0 ? pulseStyle : null,
                 ]}
