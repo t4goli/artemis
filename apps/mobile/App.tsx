@@ -18,16 +18,15 @@ const RED = "#e03030";
 const BUTTON = "#e0e0e0";
 const TEXT_MUTED = "#888888";
 const DOT_SIZE = 50;
-const FIRST_DOT_SIZE = 118;
 const RETICLE_SIZE = 64;
 const LOCK_RADIUS = 42;
-const FIRST_LOCK_RADIUS = 76;
-const FIRST_DOT_SHRINK_RADIUS = 118;
 const HOLD_MS = 1000;
 const MOTION_INTERVAL_MS = 40;
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const CENTER = { x: SCREEN_WIDTH / 2, y: SCREEN_HEIGHT / 2 };
+const FIRST_DOT_SIZE = Math.min(SCREEN_WIDTH * 0.92, 370);
+const FIRST_LOCK_RADIUS = FIRST_DOT_SIZE / 2 + RETICLE_SIZE / 2 - 10;
 
 type CaptureTarget = {
   id: number;
@@ -42,7 +41,7 @@ type MotionOrigin = {
 };
 
 const TARGETS: CaptureTarget[] = [
-  { id: 0, x: 0, y: -155 },
+  { id: 0, x: 0, y: -245 },
   { id: 1, x: 165, y: 0 },
   { id: 2, x: -165, y: 0 },
   { id: 3, x: 0, y: -170 },
@@ -227,6 +226,11 @@ export default function App() {
   useEffect(() => {
     if (!isCapturing) return;
 
+    if (isFirstTarget && isLocked) {
+      completeCurrentTarget();
+      return;
+    }
+
     if (!isLocked) {
       holdStartRef.current = null;
       setHoldProgress(0);
@@ -308,9 +312,7 @@ export default function App() {
             const position = targetScreenPosition(target, pan);
             const captured = capturedIds.includes(target.id);
             const current = index === activeIndex;
-            const showLargeFirstTarget =
-              capturedCount === 0 && current && activeDistance > FIRST_DOT_SHRINK_RADIUS;
-            const dotSize = showLargeFirstTarget ? FIRST_DOT_SIZE : DOT_SIZE;
+            const dotSize = capturedCount === 0 && current ? FIRST_DOT_SIZE : DOT_SIZE;
             const dotColor = motionWarning && !captured ? RED : GREEN;
             const dot = (
               <Animated.View
@@ -326,7 +328,7 @@ export default function App() {
                     backgroundColor: dotColor,
                     opacity: captured ? 0.4 : 1,
                   },
-                  current ? pulseStyle : null,
+                  current && capturedCount > 0 ? pulseStyle : null,
                 ]}
               />
             );
@@ -341,7 +343,7 @@ export default function App() {
                   styles.reticleFill,
                   {
                     transform: [{ scale: Math.max(0.02, holdProgress) }],
-                    opacity: holdProgress > 0 ? 0.92 : 0,
+                    opacity: holdProgress > 0 && !isFirstTarget ? 0.92 : 0,
                   },
                 ]}
               />
