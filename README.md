@@ -15,6 +15,33 @@ The app starts with a full-screen camera guide, captures overlapping Level, Ceil
 - Finalize endpoint that tries Hugin first for a full equirectangular 360.
 - Fallback photo-map composition if Hugin cannot stitch the scene.
 
+## Serious Version Direction
+
+Artemis is moving toward a private capture app plus a public web viewer:
+
+```text
+private iPhone capture app
+-> backend stitch/processing pipeline
+-> public 360 memory viewer
+```
+
+The first serious-version app shell lives in:
+
+```text
+apps/mobile
+```
+
+It is an Expo React Native app that can be developed from Windows and later built for iPhone through Expo/EAS cloud builds.
+
+Run it with:
+
+```powershell
+cd apps\mobile
+npm.cmd start
+```
+
+The next mobile milestones are camera access, orientation/pose capture, guided target locking, local capture storage, and private upload to the backend.
+
 ## Setup
 
 ```powershell
