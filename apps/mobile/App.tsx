@@ -436,7 +436,7 @@ export default function App() {
         {firstFrameUri ? (
           <View
             style={[
-              styles.cameraFrame,
+              styles.capturedPlane,
               {
                 opacity: planeVisible ? 1 : 0,
                 transform: [
@@ -450,10 +450,12 @@ export default function App() {
               },
             ]}
           >
-            <Image
-              source={{ uri: firstFrameUri }}
-              style={styles.frozenFrame}
-            />
+            <View style={styles.cameraFrame}>
+              <Image
+                source={{ uri: firstFrameUri }}
+                style={styles.frozenFrame}
+              />
+            </View>
           </View>
         ) : (
           <CameraView ref={cameraRef} style={styles.cameraFrame} facing="back" autofocus="on" />
@@ -685,8 +687,15 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     width: "72%",
   },
+  capturedPlane: {
+    alignItems: "center",
+    backfaceVisibility: "hidden",
+    justifyContent: "center",
+    width: "100%",
+  },
   frozenFrame: {
     ...StyleSheet.absoluteFillObject,
+    backfaceVisibility: "hidden",
     resizeMode: "cover",
   },
   targetLayer: {
