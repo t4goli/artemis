@@ -143,7 +143,7 @@ export default function App() {
   const activeTarget = TARGETS[activeIndex] ?? TARGETS[TARGETS.length - 1];
   const capturedCount = capturedIds.length;
   const isFirstTarget = capturedCount === 0 && activeIndex === 0;
-  const firstTargetTravel = clamp(Math.abs(pan.y), 0, FIRST_DOT_FAR_DISTANCE);
+  const firstTargetTravel = clamp(-pan.y, 0, FIRST_DOT_FAR_DISTANCE);
   const firstTargetOffset = {
     x: clamp(pan.x * 0.03, -FIRST_DOT_MAX_SIDE_DRIFT, FIRST_DOT_MAX_SIDE_DRIFT),
     y: -FIRST_DOT_FAR_DISTANCE + firstTargetTravel,
