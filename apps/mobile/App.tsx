@@ -435,7 +435,6 @@ export default function App() {
       <View style={styles.captureScreen}>
         {firstFrameUri ? (
           <>
-            <CameraView style={styles.cameraFrame} facing="back" autofocus="on" />
             <Image
               source={{ uri: firstFrameUri }}
               style={[
