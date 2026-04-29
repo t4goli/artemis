@@ -28,6 +28,10 @@ const MOTION_INTERVAL_MS = 40;
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const CENTER = { x: SCREEN_WIDTH / 2, y: SCREEN_HEIGHT / 2 };
+const CAMERA_FRAME_WIDTH = SCREEN_WIDTH * 0.72;
+const CAMERA_FRAME_HEIGHT = CAMERA_FRAME_WIDTH / 0.75;
+const CAMERA_FRAME_LEFT = CENTER.x - CAMERA_FRAME_WIDTH / 2;
+const CAMERA_FRAME_TOP = CENTER.y - CAMERA_FRAME_HEIGHT / 2;
 const FIRST_DOT_SIZE = Math.min(SCREEN_WIDTH * 0.92, 370);
 const FIRST_DOT_NORMAL_DISTANCE = 72;
 const FIRST_DOT_FAR_DISTANCE = 260;
@@ -103,6 +107,21 @@ function targetOffsetFromCenter(target: CaptureTarget, pan: { x: number; y: numb
   };
 }
 
+function sideTargetPosition(target: CaptureTarget) {
+  switch (target.id) {
+    case 1:
+      return { x: CAMERA_FRAME_LEFT + CAMERA_FRAME_WIDTH, y: CENTER.y };
+    case 2:
+      return { x: CAMERA_FRAME_LEFT, y: CENTER.y };
+    case 3:
+      return { x: CENTER.x, y: CAMERA_FRAME_TOP };
+    case 4:
+      return { x: CENTER.x, y: CAMERA_FRAME_TOP + CAMERA_FRAME_HEIGHT };
+    default:
+      return targetScreenPosition(target, { x: 0, y: 0 });
+  }
+}
+
 function directionText(offset: { x: number; y: number }) {
   if (Math.abs(offset.x) > Math.abs(offset.y)) {
     return offset.x > 0 ? "Tilt your device to the right" : "Tilt your device to the left";
@@ -163,7 +182,7 @@ export default function App() {
   const activeLockRadius = isFirstTarget ? FIRST_LOCK_RADIUS : LOCK_RADIUS;
   const isLocked = activeDistance <= activeLockRadius;
   const progress = capturedCount / TARGETS.length;
-  const visibleTargets = capturedCount === 0 ? [activeTarget] : TARGETS;
+  const visibleTargets = capturedCount === 0 ? [activeTarget] : capturedCount === 1 ? TARGETS.slice(1, 5) : TARGETS;
 
   const pulseStyle = useMemo(
     () => ({
@@ -361,7 +380,23 @@ export default function App() {
     return (
       <View style={styles.captureScreen}>
         {firstFrameUri ? (
-          <Image source={{ uri: firstFrameUri }} style={styles.cameraFrame} />
+          <View style={styles.cameraFrame}>
+            <Image
+              source={{ uri: firstFrameUri }}
+              style={[
+                styles.frozenFrame,
+                {
+                  transform: [
+                    { perspective: 900 },
+                    { translateX: clamp(-pan.x * 0.32, -110, 110) },
+                    { translateY: clamp(-pan.y * 0.2, -90, 90) },
+                    { rotateZ: `${clamp(pan.x * 0.035, -14, 14)}deg` },
+                    { scale: 1.08 },
+                  ],
+                },
+              ]}
+            />
+          </View>
         ) : (
           <CameraView ref={cameraRef} style={styles.cameraFrame} facing="back" autofocus="on" />
         )}
@@ -372,6 +407,8 @@ export default function App() {
             const position =
               capturedCount === 0
                 ? { x: CENTER.x + firstTargetOffset.x, y: CENTER.y + firstTargetOffset.y }
+                : capturedCount === 1
+                  ? sideTargetPosition(target)
                 : targetScreenPosition(target, pan);
             const captured = capturedIds.includes(target.id);
             const current = index === activeIndex;
@@ -584,10 +621,18 @@ const styles = StyleSheet.create({
   },
   cameraFrame: {
     aspectRatio: 0.75,
+    backgroundColor: "#000000",
     borderColor: "#ffffff",
     borderWidth: 1.5,
     overflow: "hidden",
     width: "72%",
+  },
+  frozenFrame: {
+    height: "108%",
+    left: "-4%",
+    position: "absolute",
+    top: "-4%",
+    width: "108%",
   },
   targetLayer: {
     ...StyleSheet.absoluteFillObject,
