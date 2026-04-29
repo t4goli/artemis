@@ -38,8 +38,7 @@ const FIRST_DOT_FAR_DISTANCE = 260;
 const FIRST_DOT_MAX_SIDE_DRIFT = 18;
 const FIRST_DOT_CENTER_DEADZONE = 0.16;
 const GRAVITY = 9.80665;
-const PHOTO_HALF_FOV_X = 32;
-const PHOTO_HALF_FOV_Y = 24;
+const PHOTO_EXIT_ANGLE = 78;
 
 type CaptureTarget = {
   id: number;
@@ -139,13 +138,6 @@ function clamp(value: number, min: number, max: number) {
 function deadzone(value: number, threshold: number) {
   if (Math.abs(value) < threshold) return 0;
   return value;
-}
-
-function coverageOpacity(yaw: number, pitch: number) {
-  const yawOverflow = Math.max(0, Math.abs(yaw) - PHOTO_HALF_FOV_X);
-  const pitchOverflow = Math.max(0, Math.abs(pitch) - PHOTO_HALF_FOV_Y);
-  const overflow = Math.max(yawOverflow / 10, pitchOverflow / 8);
-  return clamp(1 - overflow, 0, 1);
 }
 
 function firstDotSize(distance: number) {
@@ -434,35 +426,33 @@ export default function App() {
       pitch: frozenMotionDelta.pitch - firstFrameMotionDelta.pitch,
       roll: frozenMotionDelta.roll - firstFrameMotionDelta.roll,
     };
-    const photoYaw = deadzone(frozenAngleOffset.yaw, 1.2);
-    const photoPitch = deadzone(frozenAngleOffset.pitch, 0.8);
-    const photoRoll = deadzone(frozenAngleOffset.roll, 5);
-    const photoCoverage = coverageOpacity(photoYaw, photoPitch);
-    const yawEdge = clamp(Math.abs(photoYaw) / PHOTO_HALF_FOV_X, 0, 1);
-    const pitchEdge = clamp(Math.abs(photoPitch) / PHOTO_HALF_FOV_Y, 0, 1);
-    const perspectiveScale = 1 + Math.max(yawEdge * 0.1, pitchEdge * 0.18);
+    const planeYaw = deadzone(frozenAngleOffset.yaw, 0.8);
+    const planePitch = deadzone(frozenAngleOffset.pitch, 0.6);
+    const planeRoll = deadzone(frozenAngleOffset.roll, 5);
+    const planeVisible = Math.abs(planeYaw) < PHOTO_EXIT_ANGLE && Math.abs(planePitch) < PHOTO_EXIT_ANGLE;
 
     return (
       <View style={styles.captureScreen}>
         {firstFrameUri ? (
-          <View style={styles.cameraFrame}>
+          <View
+            style={[
+              styles.cameraFrame,
+              {
+                opacity: planeVisible ? 1 : 0,
+                transform: [
+                  { perspective: 760 },
+                  { translateX: clamp(-planeYaw * 7.6, -640, 640) },
+                  { translateY: clamp(planePitch * 7.2, -560, 560) },
+                  { rotateY: `${clamp(-planeYaw * 1.15, -78, 78)}deg` },
+                  { rotateX: `${clamp(planePitch * 1.15, -72, 72)}deg` },
+                  { rotateZ: `${clamp(planeRoll * 0.08, -4, 4)}deg` },
+                ],
+              },
+            ]}
+          >
             <Image
               source={{ uri: firstFrameUri }}
-              style={[
-                styles.frozenFrame,
-                {
-                  opacity: photoCoverage,
-                  transform: [
-                    { perspective: 760 },
-                    { translateX: clamp(-photoYaw * 8.2, -390, 390) },
-                    { translateY: clamp(photoPitch * 8.4, -330, 330) },
-                    { rotateY: `${clamp(-photoYaw * 1.75, -68, 68)}deg` },
-                    { rotateX: `${clamp(photoPitch * 1.55, -58, 58)}deg` },
-                    { rotateZ: `${clamp(photoRoll * 0.08, -3, 3)}deg` },
-                    { scale: perspectiveScale },
-                  ],
-                },
-              ]}
+              style={styles.frozenFrame}
             />
           </View>
         ) : (
@@ -696,12 +686,8 @@ const styles = StyleSheet.create({
     width: "72%",
   },
   frozenFrame: {
-    height: "108%",
-    left: "-4%",
-    position: "absolute",
+    ...StyleSheet.absoluteFillObject,
     resizeMode: "cover",
-    top: "-4%",
-    width: "108%",
   },
   targetLayer: {
     ...StyleSheet.absoluteFillObject,
