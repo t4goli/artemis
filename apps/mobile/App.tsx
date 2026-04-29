@@ -134,6 +134,11 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
+function deadzone(value: number, threshold: number) {
+  if (Math.abs(value) < threshold) return 0;
+  return value;
+}
+
 function firstDotSize(distance: number) {
   const t = clamp(
     (distance - FIRST_DOT_NORMAL_DISTANCE) / (FIRST_DOT_FAR_DISTANCE - FIRST_DOT_NORMAL_DISTANCE),
@@ -152,12 +157,10 @@ export default function App() {
   const [capturedIds, setCapturedIds] = useState<number[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [frozenPan, setFrozenPan] = useState({ x: 0, y: 0 });
   const [motionDelta, setMotionDelta] = useState({ yaw: 0, pitch: 0, roll: 0 });
   const [frozenMotionDelta, setFrozenMotionDelta] = useState({ yaw: 0, pitch: 0, roll: 0 });
   const [gravityZ, setGravityZ] = useState(0);
   const [firstFrameUri, setFirstFrameUri] = useState("");
-  const [firstFramePan, setFirstFramePan] = useState({ x: 0, y: 0 });
   const [firstFrameMotionDelta, setFirstFrameMotionDelta] = useState({ yaw: 0, pitch: 0, roll: 0 });
   const [holdProgress, setHoldProgress] = useState(0);
   const [showNudge, setShowNudge] = useState(false);
@@ -165,9 +168,7 @@ export default function App() {
 
   const originRef = useRef<MotionOrigin | null>(null);
   const cameraRef = useRef<CameraView | null>(null);
-  const panRef = useRef({ x: 0, y: 0 });
   const motionDeltaRef = useRef({ yaw: 0, pitch: 0, roll: 0 });
-  const frozenPanRef = useRef({ x: 0, y: 0 });
   const frozenMotionDeltaRef = useRef({ yaw: 0, pitch: 0, roll: 0 });
   const holdStartRef = useRef<number | null>(null);
   const completingRef = useRef(false);
@@ -243,37 +244,25 @@ export default function App() {
   }, [capturedIds]);
 
   useEffect(() => {
-    panRef.current = pan;
-  }, [pan]);
-
-  useEffect(() => {
     motionDeltaRef.current = motionDelta;
   }, [motionDelta]);
 
   useEffect(() => {
     if (!firstFrameUri) {
-      frozenPanRef.current = pan;
-      setFrozenPan(pan);
       frozenMotionDeltaRef.current = motionDelta;
       setFrozenMotionDelta(motionDelta);
       return;
     }
 
-    const nextPan = {
-      x: frozenPanRef.current.x + (pan.x - frozenPanRef.current.x) * 0.14,
-      y: frozenPanRef.current.y + (pan.y - frozenPanRef.current.y) * 0.14,
-    };
     const nextMotionDelta = {
       yaw: frozenMotionDeltaRef.current.yaw + (motionDelta.yaw - frozenMotionDeltaRef.current.yaw) * 0.14,
       pitch: frozenMotionDeltaRef.current.pitch + (motionDelta.pitch - frozenMotionDeltaRef.current.pitch) * 0.14,
       roll: frozenMotionDeltaRef.current.roll + (motionDelta.roll - frozenMotionDeltaRef.current.roll) * 0.14,
     };
 
-    frozenPanRef.current = nextPan;
     frozenMotionDeltaRef.current = nextMotionDelta;
-    setFrozenPan(nextPan);
     setFrozenMotionDelta(nextMotionDelta);
-  }, [firstFrameUri, motionDelta, pan]);
+  }, [firstFrameUri, motionDelta]);
 
   useEffect(() => {
     if (!isCapturing) return;
@@ -362,14 +351,11 @@ export default function App() {
     await DeviceMotion.requestPermissionsAsync();
     originRef.current = null;
     setPan({ x: 0, y: 0 });
-    setFrozenPan({ x: 0, y: 0 });
     setMotionDelta({ yaw: 0, pitch: 0, roll: 0 });
     setFrozenMotionDelta({ yaw: 0, pitch: 0, roll: 0 });
-    frozenPanRef.current = { x: 0, y: 0 };
     frozenMotionDeltaRef.current = { yaw: 0, pitch: 0, roll: 0 };
     setGravityZ(0);
     setFirstFrameUri("");
-    setFirstFramePan({ x: 0, y: 0 });
     setFirstFrameMotionDelta({ yaw: 0, pitch: 0, roll: 0 });
     setCapturedIds([]);
     setActiveIndex(0);
@@ -407,7 +393,6 @@ export default function App() {
         });
 
         if (picture?.uri) {
-          setFirstFramePan(panRef.current);
           setFirstFrameMotionDelta(motionDeltaRef.current);
           setFirstFrameUri(picture.uri);
         }
@@ -435,15 +420,14 @@ export default function App() {
   }
 
   if (isCapturing) {
-    const frozenFrameOffset = {
-      x: frozenPan.x - firstFramePan.x,
-      y: frozenPan.y - firstFramePan.y,
-    };
     const frozenAngleOffset = {
       yaw: frozenMotionDelta.yaw - firstFrameMotionDelta.yaw,
       pitch: frozenMotionDelta.pitch - firstFrameMotionDelta.pitch,
       roll: frozenMotionDelta.roll - firstFrameMotionDelta.roll,
     };
+    const photoYaw = deadzone(frozenAngleOffset.yaw, 3);
+    const photoPitch = deadzone(frozenAngleOffset.pitch, 1.2);
+    const photoRoll = deadzone(frozenAngleOffset.roll, 5);
 
     return (
       <View style={styles.captureScreen}>
@@ -456,11 +440,11 @@ export default function App() {
                 {
                   transform: [
                     { perspective: 900 },
-                    { translateX: frozenFrameOffset.x * 0.55 },
-                    { translateY: frozenFrameOffset.y * 0.55 },
-                    { rotateY: `${clamp(-frozenAngleOffset.yaw * 1.25, -55, 55)}deg` },
-                    { rotateX: `${clamp(frozenAngleOffset.pitch * 1.15, -45, 45)}deg` },
-                    { rotateZ: `${clamp(frozenAngleOffset.roll * 0.45, -18, 18)}deg` },
+                    { translateX: clamp(-photoYaw * 3.2, -160, 160) },
+                    { translateY: clamp(photoPitch * 3.8, -140, 140) },
+                    { rotateY: `${clamp(-photoYaw * 1.1, -50, 50)}deg` },
+                    { rotateX: `${clamp(photoPitch * 1.15, -46, 46)}deg` },
+                    { rotateZ: `${clamp(photoRoll * 0.16, -5, 5)}deg` },
                   ],
                 },
               ]}
