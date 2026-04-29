@@ -31,6 +31,7 @@ const FIRST_DOT_SIZE = Math.min(SCREEN_WIDTH * 0.92, 370);
 const FIRST_DOT_NORMAL_DISTANCE = 72;
 const FIRST_DOT_FAR_DISTANCE = 260;
 const FIRST_DOT_MAX_SIDE_DRIFT = 18;
+const GRAVITY = 9.80665;
 
 type CaptureTarget = {
   id: number;
@@ -144,10 +145,10 @@ export default function App() {
   const activeTarget = TARGETS[activeIndex] ?? TARGETS[TARGETS.length - 1];
   const capturedCount = capturedIds.length;
   const isFirstTarget = capturedCount === 0 && activeIndex === 0;
-  const isPointingAtCeiling = gravityZ < -4;
+  const gravityTilt = clamp(gravityZ / GRAVITY, -1, 1);
   const firstTargetOffset = {
     x: clamp(pan.x * 0.03, -FIRST_DOT_MAX_SIDE_DRIFT, FIRST_DOT_MAX_SIDE_DRIFT),
-    y: -clamp(isPointingAtCeiling ? Math.abs(pan.y) : pan.y, -FIRST_DOT_FAR_DISTANCE, FIRST_DOT_FAR_DISTANCE),
+    y: -gravityTilt * FIRST_DOT_FAR_DISTANCE,
   };
   const activeOffset = isFirstTarget ? firstTargetOffset : targetOffsetFromCenter(activeTarget, pan);
   const firstTargetVerticalDistance = Math.abs(activeOffset.y);
