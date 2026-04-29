@@ -30,8 +30,20 @@ export default function App() {
 
   const activeTarget = targets[activeTargetIndex];
   const capturedCount = targets.filter((target) => target.captured).length;
-  const targetOffset = useMemo(() => projectTarget(activeTarget, deviceRotation), [activeTarget, deviceRotation]);
-  const isAligned = Math.abs(targetOffset.x) < 34 && Math.abs(targetOffset.y) < 34;
+  const visibleTargets = useMemo(() => {
+    if (capturedCount === 0) {
+      const targetProjection = projectTarget(activeTarget, deviceRotation);
+      return activeTarget ? [{ target: activeTarget, projection: targetProjection }] : [];
+    }
+
+    return targets
+      .filter((target) => !target.captured)
+      .map((target) => ({ target, projection: projectTarget(target, deviceRotation) }))
+      .filter(({ projection }) => projection.visible)
+      .slice(0, 5);
+  }, [activeTarget, capturedCount, deviceRotation, targets]);
+  const activeProjection = useMemo(() => projectTarget(activeTarget, deviceRotation), [activeTarget, deviceRotation]);
+  const isAligned = Math.abs(activeProjection.x) < 54 && Math.abs(activeProjection.y) < 54;
   const guidance = useMemo(() => {
     if (!activeTarget) return "All targets captured. Ready to upload.";
     if (activeTarget.pitch === "up") return "Tilt up and line up with the red dot.";
@@ -130,69 +142,107 @@ export default function App() {
   return (
     <SafeAreaView style={styles.captureScreen}>
       <StatusBar style="light" />
-      <View style={styles.cameraPreview}>
-        {cameraPermission?.granted ? (
-          <CameraView
-            style={styles.liveCamera}
-            facing="back"
-            mode="picture"
-            autofocus="on"
-            selectedLens="builtInWideAngleCamera"
-            responsiveOrientationWhenOrientationLocked
-          />
-        ) : (
-          <View style={styles.blackPreview}>
-            <Text style={styles.previewText}>Camera permission needed</Text>
-            <Text style={styles.previewSubtext}>Exit and tap Begin capture to allow camera access.</Text>
-          </View>
-        )}
-
-          <View style={styles.aimLayer}>
-          <View
-            style={[
-              styles.targetCircle,
-              { transform: [{ translateX: targetOffset.x }, { translateY: targetOffset.y }] },
-              isAligned && styles.targetCircleAligned,
-            ]}
-          >
-            <View style={[styles.innerTarget, isAligned && styles.innerTargetAligned]} />
-          </View>
-          <View style={styles.deviceCircle} />
-        </View>
-
+      <View style={styles.captureStage}>
         <View style={styles.captureTopBar}>
-          <View>
-            <Text style={styles.topLabel}>{captureName}</Text>
-            <Text style={styles.topValue}>
-              {capturedCount}/{targets.length} captured
-            </Text>
-          </View>
-          <TouchableOpacity onPress={() => setIsCapturing(false)} style={styles.smallButton}>
-            <Text style={styles.smallButtonText}>Exit</Text>
+          <TouchableOpacity onPress={() => setIsCapturing(false)} style={styles.roundButton}>
+            <Text style={styles.roundButtonText}>‹</Text>
+          </TouchableOpacity>
+          <View style={styles.topCenterDot} />
+          <TouchableOpacity onPress={() => setIsCapturing(false)} style={[styles.roundButton, styles.exitButton]}>
+            <Text style={styles.exitButtonText}>×</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.guidanceCard}>
-          <Text style={styles.guidanceTitle}>{isAligned ? "Hold steady" : guidance}</Text>
-          <Text style={styles.guidanceText}>
-            {isAligned
-              ? "Capturing once the target stays green."
-              : `Target ${activeTargetIndex + 1}: turn ${formatTurn(targetOffset.x)}, tilt ${formatTilt(targetOffset.y)}`}
+        <View style={styles.tiltPrompt}>
+          <View style={styles.tiltIcon}>
+            <Text style={styles.tiltIconText}>▰</Text>
+          </View>
+          <Text style={styles.tiltText}>{tiltPrompt(activeProjection.y)}</Text>
+        </View>
+
+        <View style={styles.worldViewport}>
+          {capturedCount > 0 && (
+            <View
+              style={[
+                styles.capturedPlane,
+                {
+                  transform: [
+                    { perspective: 900 },
+                    { rotateZ: `${clamp(shortestAngle(deviceRotation.yaw) * -0.06, -12, 12)}deg` },
+                    { rotateY: `${clamp(shortestAngle(deviceRotation.yaw) * -0.12, -18, 18)}deg` },
+                  ],
+                },
+              ]}
+            >
+              {cameraPermission?.granted ? (
+                <CameraView
+                  style={styles.liveCamera}
+                  facing="back"
+                  mode="picture"
+                  autofocus="on"
+                  selectedLens="builtInWideAngleCamera"
+                  responsiveOrientationWhenOrientationLocked
+                />
+              ) : (
+                <View style={styles.blackPreview}>
+                  <Text style={styles.previewText}>Camera permission needed</Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {capturedCount === 0 && (
+            <View style={styles.firstCaptureFrame}>
+              {cameraPermission?.granted ? (
+                <CameraView
+                  style={styles.liveCamera}
+                  facing="back"
+                  mode="picture"
+                  autofocus="on"
+                  selectedLens="builtInWideAngleCamera"
+                  responsiveOrientationWhenOrientationLocked
+                />
+              ) : (
+                <View style={styles.blackPreview}>
+                  <Text style={styles.previewText}>Camera permission needed</Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          <View style={styles.aimLayer}>
+            {visibleTargets.map(({ target, projection }) => (
+              <View
+                key={target.id}
+                style={[
+                  styles.targetDot,
+                  target.id === activeTarget?.id && styles.activeTargetDot,
+                  target.id === activeTarget?.id && isAligned && styles.alignedTargetDot,
+                  { transform: [{ translateX: projection.x }, { translateY: projection.y }] },
+                ]}
+              />
+            ))}
+            <Text style={styles.directionChevron}>›</Text>
+            <View style={[styles.deviceCircle, isAligned && styles.deviceCircleAligned]}>
+              {isAligned && <View style={styles.holdWedge} />}
+            </View>
+          </View>
+        </View>
+
+        <Text style={styles.bottomInstruction}>
+          {capturedCount === 0
+            ? "Point your device at the green target"
+            : "Shoot all photos from the same spot as your initial photo to ensure an optimal result."}
+        </Text>
+
+        <View style={styles.progressRow}>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${Math.max(4, (capturedCount / targets.length) * 100)}%` }]} />
+          </View>
+          <Text style={styles.progressText}>
+            {capturedCount} of {targets.length}
           </Text>
         </View>
-      </View>
-
-      <View style={styles.targetMap}>
-        {targets.map((target, index) => (
-          <View
-            key={target.id}
-            style={[
-              styles.mapDot,
-              target.captured && styles.mapDotCaptured,
-              index === activeTargetIndex && styles.mapDotActive,
-            ]}
-          />
-        ))}
       </View>
 
       <TouchableOpacity style={styles.primaryButton} activeOpacity={0.88} onPress={simulateAlignment}>
@@ -210,15 +260,19 @@ function getRotation(motion: DeviceMotionMeasurement) {
 }
 
 function projectTarget(target: Target | undefined, rotation: { yaw: number; pitch: number }) {
-  if (!target) return { x: 0, y: 0 };
+  if (!target) return { x: 0, y: 0, visible: false };
   const pitchTargets = {
     level: 0,
     up: 42,
     down: -42,
   };
-  const x = clamp(shortestAngle(target.yaw - rotation.yaw) * 5.4, -150, 150);
-  const y = clamp((rotation.pitch - pitchTargets[target.pitch]) * 4.2, -190, 190);
-  return { x, y };
+  const rawX = shortestAngle(target.yaw - rotation.yaw) * 4.1;
+  const rawY = (rotation.pitch - pitchTargets[target.pitch]) * 3.4;
+  return {
+    x: clamp(rawX, -210, 210),
+    y: clamp(rawY, -250, 250),
+    visible: Math.abs(rawX) < 265 && Math.abs(rawY) < 300,
+  };
 }
 
 function toDegrees(value: number) {
@@ -234,18 +288,14 @@ function shortestAngle(value: number) {
   return normalized < -180 ? normalized + 360 : normalized;
 }
 
-function formatTurn(offsetX: number) {
-  if (Math.abs(offsetX) < 34) return "hold";
-  return offsetX > 0 ? "right" : "left";
-}
-
-function formatTilt(offsetY: number) {
-  if (Math.abs(offsetY) < 34) return "hold";
-  return offsetY > 0 ? "down" : "up";
-}
-
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function tiltPrompt(offsetY: number) {
+  if (offsetY < -50) return "Tilt your device up";
+  if (offsetY > 50) return "Tilt your device down";
+  return "Point your device at the target";
 }
 
 const styles = StyleSheet.create({
@@ -348,12 +398,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#05070a",
   },
-  cameraPreview: {
+  captureStage: {
     flex: 1,
-    margin: 10,
-    borderRadius: 8,
-    overflow: "hidden",
     backgroundColor: "#000000",
+    paddingHorizontal: 22,
+    paddingTop: 18,
+    paddingBottom: 10,
   },
   liveCamera: {
     ...StyleSheet.absoluteFillObject,
@@ -381,109 +431,154 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  targetCircle: {
-    width: 86,
-    height: 86,
-    borderRadius: 43,
-    borderWidth: 4,
-    borderColor: "#ff4d4d",
-    alignItems: "center",
-    justifyContent: "center",
+  targetDot: {
+    position: "absolute",
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    backgroundColor: "rgba(28, 220, 70, 0.72)",
   },
-  targetCircleAligned: {
-    borderColor: "#45e07a",
+  activeTargetDot: {
+    backgroundColor: "rgba(255, 64, 72, 0.92)",
   },
-  innerTarget: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: "#ff4d4d",
-  },
-  innerTargetAligned: {
-    backgroundColor: "#45e07a",
+  alignedTargetDot: {
+    backgroundColor: "rgba(28, 235, 75, 0.92)",
   },
   deviceCircle: {
     position: "absolute",
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 2,
+    width: 82,
+    height: 82,
+    borderRadius: 41,
+    borderWidth: 5,
+    borderColor: "#ffffff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  deviceCircleAligned: {
     borderColor: "#ffffff",
   },
+  holdWedge: {
+    width: 46,
+    height: 46,
+    borderTopLeftRadius: 46,
+    backgroundColor: "rgba(28, 235, 75, 0.78)",
+  },
   captureTopBar: {
-    position: "absolute",
-    top: 14,
-    left: 14,
-    right: 14,
+    minHeight: 58,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  topLabel: {
-    color: "#cbd7e5",
-    fontSize: 13,
-    fontWeight: "800",
-  },
-  topValue: {
-    color: "#ffffff",
-    fontSize: 22,
-    fontWeight: "900",
-  },
-  smallButton: {
-    minHeight: 38,
-    paddingHorizontal: 14,
-    borderRadius: 8,
+  roundButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "#ffffff",
   },
-  smallButtonText: {
-    color: "#ffffff",
+  roundButtonText: {
+    color: "#05070a",
+    fontSize: 44,
     fontWeight: "900",
+    lineHeight: 48,
   },
-  guidanceCard: {
-    position: "absolute",
-    left: 14,
-    right: 14,
-    bottom: 14,
-    padding: 16,
+  topCenterDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#2dea5a",
+  },
+  exitButton: {
+    backgroundColor: "#ff252d",
+  },
+  exitButtonText: {
+    color: "#030303",
+    fontSize: 44,
+    fontWeight: "900",
+    lineHeight: 48,
+  },
+  tiltPrompt: {
+    minHeight: 108,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+  tiltIcon: {
+    width: 74,
+    height: 74,
     borderRadius: 8,
-    backgroundColor: "rgba(7, 10, 14, 0.82)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: "#ffffff",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  guidanceTitle: {
+  tiltIconText: {
+    color: "#ffffff",
+    fontSize: 36,
+    transform: [{ rotate: "-45deg" }],
+  },
+  tiltText: {
+    color: "#ffffff",
+    fontSize: 22,
+    textAlign: "center",
+  },
+  worldViewport: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  firstCaptureFrame: {
+    width: "82%",
+    aspectRatio: 0.76,
+    borderWidth: 1,
+    borderColor: "#ffffff",
+    overflow: "hidden",
+    backgroundColor: "#0a0a0a",
+  },
+  capturedPlane: {
+    width: "92%",
+    aspectRatio: 0.76,
+    borderWidth: 1,
+    borderColor: "#ffffff",
+    overflow: "hidden",
+    backgroundColor: "#0a0a0a",
+  },
+  directionChevron: {
+    position: "absolute",
+    color: "#ffffff",
+    fontSize: 60,
+    fontWeight: "300",
+    transform: [{ translateX: 72 }],
+  },
+  bottomInstruction: {
+    minHeight: 82,
+    color: "#ffffff",
+    fontSize: 22,
+    lineHeight: 30,
+    textAlign: "center",
+    paddingHorizontal: 8,
+  },
+  progressRow: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  progressTrack: {
+    flex: 1,
+    height: 20,
+    borderRadius: 10,
+    overflow: "hidden",
+    backgroundColor: "#ffffff",
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: "#28dd5d",
+  },
+  progressText: {
     color: "#ffffff",
     fontSize: 20,
-    fontWeight: "900",
-  },
-  guidanceText: {
-    color: "#aeb8c5",
-    fontSize: 14,
-    marginTop: 4,
-  },
-  targetMap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: 8,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-  },
-  mapDot: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: "#17202b",
-    borderWidth: 1,
-    borderColor: "#59697a",
-  },
-  mapDotActive: {
-    borderColor: "#ff4d4d",
-    borderWidth: 3,
-  },
-  mapDotCaptured: {
-    backgroundColor: "#45e07a",
-    borderColor: "#45e07a",
+    fontWeight: "700",
   },
 });
