@@ -43,8 +43,8 @@ export default function App() {
       .slice(0, 5);
   }, [activeTarget, capturedCount, deviceRotation, targets]);
   const activeProjection = useMemo(() => projectTarget(activeTarget, deviceRotation), [activeTarget, deviceRotation]);
-  const alignmentDistance = Math.hypot(activeProjection.x, activeProjection.y);
-  const isAligned = alignmentDistance < 118;
+  const alignmentDistance = Math.hypot(activeProjection.angleX, activeProjection.angleY);
+  const isAligned = activeProjection.visible && alignmentDistance < 9;
   const guidance = useMemo(() => {
     if (!activeTarget) return "All targets captured. Ready to upload.";
     if (activeTarget.pitch === "up") return "Tilt up and line up with the red dot.";
@@ -218,13 +218,13 @@ export default function App() {
                 style={[
                   styles.targetDot,
                   target.id === activeTarget?.id && styles.activeTargetDot,
-                  target.id === activeTarget?.id && alignmentDistance < 170 && styles.nearTargetDot,
+                  target.id === activeTarget?.id && alignmentDistance < 16 && styles.nearTargetDot,
                   target.id === activeTarget?.id && isAligned && styles.alignedTargetDot,
                   { transform: [{ translateX: projection.x }, { translateY: projection.y }] },
                 ]}
               />
             ))}
-            <Text style={styles.directionChevron}>›</Text>
+            {!activeProjection.visible && <Text style={styles.directionChevron}>{activeProjection.angleX > 0 ? "›" : "‹"}</Text>}
             <View style={[styles.deviceCircle, isAligned && styles.deviceCircleAligned]}>
               {isAligned && <View style={styles.holdWedge} />}
             </View>
@@ -262,18 +262,23 @@ function getRotation(motion: DeviceMotionMeasurement) {
 }
 
 function projectTarget(target: Target | undefined, rotation: { yaw: number; pitch: number }) {
-  if (!target) return { x: 0, y: 0, visible: false };
+  if (!target) return { x: 0, y: 0, angleX: 0, angleY: 0, visible: false };
   const pitchTargets = {
     level: 0,
     up: 42,
     down: -42,
   };
-  const rawX = shortestAngle(target.yaw - rotation.yaw) * 1.45;
-  const rawY = (rotation.pitch - pitchTargets[target.pitch]) * 1.55;
+  const angleX = shortestAngle(target.yaw - rotation.yaw);
+  const angleY = rotation.pitch - pitchTargets[target.pitch];
+  const fieldOfViewX = 46;
+  const fieldOfViewY = 58;
+  const visible = Math.abs(angleX) <= fieldOfViewX && Math.abs(angleY) <= fieldOfViewY;
   return {
-    x: clamp(rawX, -104, 104),
-    y: clamp(rawY, -122, 122),
-    visible: Math.abs(rawX) < 170 && Math.abs(rawY) < 190,
+    x: (angleX / fieldOfViewX) * 160,
+    y: (angleY / fieldOfViewY) * 205,
+    angleX,
+    angleY,
+    visible,
   };
 }
 
