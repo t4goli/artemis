@@ -147,7 +147,7 @@ export default function App() {
   const isPointingAtCeiling = gravityZ < -4;
   const firstTargetOffset = {
     x: clamp(pan.x * 0.03, -FIRST_DOT_MAX_SIDE_DRIFT, FIRST_DOT_MAX_SIDE_DRIFT),
-    y: clamp(isPointingAtCeiling ? Math.abs(pan.y) : pan.y, -FIRST_DOT_FAR_DISTANCE, FIRST_DOT_FAR_DISTANCE),
+    y: -clamp(isPointingAtCeiling ? Math.abs(pan.y) : pan.y, -FIRST_DOT_FAR_DISTANCE, FIRST_DOT_FAR_DISTANCE),
   };
   const activeOffset = isFirstTarget ? firstTargetOffset : targetOffsetFromCenter(activeTarget, pan);
   const firstTargetVerticalDistance = Math.abs(activeOffset.y);
