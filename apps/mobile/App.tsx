@@ -39,7 +39,7 @@ type MotionOrigin = {
 };
 
 const TARGETS: CaptureTarget[] = [
-  { id: 0, x: 0, y: 0 },
+  { id: 0, x: 0, y: -58 },
   { id: 1, x: 165, y: 0 },
   { id: 2, x: -165, y: 0 },
   { id: 3, x: 0, y: -170 },
@@ -377,14 +377,16 @@ export default function App() {
             </Text>
           </View>
 
-          <View style={styles.progressWrap}>
-            <Text style={styles.progressCount}>
-              {capturedCount} of {TARGETS.length}
-            </Text>
-            <View style={styles.progressTrack}>
-              <View style={[styles.progressBar, { width: `${progress * 100}%` }]} />
+          {capturedCount > 0 ? (
+            <View style={styles.progressWrap}>
+              <Text style={styles.progressCount}>
+                {capturedCount} of {TARGETS.length}
+              </Text>
+              <View style={styles.progressTrack}>
+                <View style={[styles.progressBar, { width: `${progress * 100}%` }]} />
+              </View>
             </View>
-          </View>
+          ) : null}
         </SafeAreaView>
       </View>
     );
