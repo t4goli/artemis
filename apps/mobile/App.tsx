@@ -434,29 +434,32 @@ export default function App() {
     return (
       <View style={styles.captureScreen}>
         {firstFrameUri ? (
-          <View
-            style={[
-              styles.capturedPlane,
-              {
-                opacity: planeVisible ? 1 : 0,
-                transform: [
-                  { perspective: 760 },
-                  { translateX: clamp(-planeYaw * 7.6, -640, 640) },
-                  { translateY: clamp(planePitch * 7.2, -560, 560) },
-                  { rotateY: `${clamp(-planeYaw * 1.15, -78, 78)}deg` },
-                  { rotateX: `${clamp(planePitch * 1.15, -72, 72)}deg` },
-                  { rotateZ: `${clamp(planeRoll * 0.08, -4, 4)}deg` },
-                ],
-              },
-            ]}
-          >
-            <View style={styles.cameraFrame}>
-              <Image
-                source={{ uri: firstFrameUri }}
-                style={styles.frozenFrame}
-              />
+          <>
+            <CameraView style={styles.cameraFrame} facing="back" autofocus="on" />
+            <View
+              style={[
+                styles.capturedPlane,
+                {
+                  opacity: planeVisible ? 1 : 0,
+                  transform: [
+                    { perspective: 920 },
+                    { translateX: clamp(-planeYaw * 4.2, -360, 360) },
+                    { translateY: clamp(planePitch * 4.4, -300, 300) },
+                    { rotateY: `${clamp(-planeYaw * 0.72, -54, 54)}deg` },
+                    { rotateX: `${clamp(planePitch * 0.72, -48, 48)}deg` },
+                    { rotateZ: `${clamp(planeRoll * 0.05, -2, 2)}deg` },
+                  ],
+                },
+              ]}
+            >
+              <View style={styles.capturedPlaneFrame}>
+                <Image
+                  source={{ uri: firstFrameUri }}
+                  style={styles.frozenFrame}
+                />
+              </View>
             </View>
-          </View>
+          </>
         ) : (
           <CameraView ref={cameraRef} style={styles.cameraFrame} facing="back" autofocus="on" />
         )}
@@ -473,7 +476,7 @@ export default function App() {
             const captured = capturedIds.includes(target.id);
             const current = index === activeIndex;
             const dotSize = capturedCount === 0 && current ? firstDotSize(firstTargetVerticalDistance) : DOT_SIZE;
-            const dotColor = motionWarning && !captured && !isFirstTarget ? RED : GREEN;
+            const dotColor = motionWarning && !captured && !isFirstTarget && !isSideTargetStage ? RED : GREEN;
             const hideFirstTargetDuringLoad = isFirstTarget && isLocked && holdProgress > 0;
             const dot = (
               <Animated.View
@@ -543,7 +546,7 @@ export default function App() {
 
           <View style={styles.instructionWrap}>
             <Text style={styles.instructionText}>
-              {motionWarning && !isFirstTarget
+              {motionWarning && !isFirstTarget && !isSideTargetStage
                 ? "Return to your original spot before capturing."
                 : capturedCount === 0
                   ? "Point your device at the blue target"
@@ -690,12 +693,25 @@ const styles = StyleSheet.create({
   capturedPlane: {
     alignItems: "center",
     backfaceVisibility: "hidden",
+    height: CAMERA_FRAME_HEIGHT,
     justifyContent: "center",
+    left: CAMERA_FRAME_LEFT,
+    position: "absolute",
+    top: CAMERA_FRAME_TOP,
+    width: CAMERA_FRAME_WIDTH,
+  },
+  capturedPlaneFrame: {
+    backgroundColor: "transparent",
+    borderColor: "#ffffff",
+    borderWidth: 1.5,
+    height: "100%",
+    overflow: "hidden",
     width: "100%",
   },
   frozenFrame: {
     ...StyleSheet.absoluteFillObject,
     backfaceVisibility: "hidden",
+    opacity: 0.9,
     resizeMode: "cover",
   },
   targetLayer: {
