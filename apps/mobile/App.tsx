@@ -20,20 +20,20 @@ const initialTargets: Target[] = Array.from({ length: 16 }, (_, index) => ({
 
 const expansionTargets = [
   { x: 0, y: 0 },
-  { x: 124, y: 0 },
-  { x: -124, y: 0 },
-  { x: 0, y: -132 },
-  { x: 0, y: 132 },
-  { x: 124, y: -96 },
-  { x: -124, y: -96 },
-  { x: 124, y: 96 },
-  { x: -124, y: 96 },
-  { x: 170, y: 0 },
-  { x: -170, y: 0 },
-  { x: 0, y: -174 },
-  { x: 0, y: 174 },
-  { x: 170, y: -124 },
-  { x: -170, y: -124 },
+  { x: 178, y: 0 },
+  { x: -178, y: 0 },
+  { x: 0, y: -170 },
+  { x: 0, y: 170 },
+  { x: 152, y: -122 },
+  { x: -152, y: -122 },
+  { x: 152, y: 122 },
+  { x: -152, y: 122 },
+  { x: 232, y: 0 },
+  { x: -232, y: 0 },
+  { x: 0, y: -218 },
+  { x: 0, y: 218 },
+  { x: 232, y: -160 },
+  { x: -232, y: -160 },
   { x: 0, y: 0 },
 ];
 
@@ -234,7 +234,9 @@ export default function App() {
                 key={target.id}
                 style={[
                   styles.targetDot,
-                  target.id === activeTarget?.id && styles.activeTargetDot,
+                  target.id !== activeTarget?.id && styles.inactiveTargetDot,
+                  target.id === activeTarget?.id && capturedCount === 0 && styles.firstTargetDot,
+                  target.id === activeTarget?.id && capturedCount > 0 && styles.activeTargetDot,
                   target.id === activeTarget?.id && alignmentDistance < 138 && styles.nearTargetDot,
                   target.id === activeTarget?.id && isAligned && styles.alignedTargetDot,
                   { transform: [{ translateX: projection.x }, { translateY: projection.y }] },
@@ -287,12 +289,14 @@ function projectTarget(target: Target | undefined, rotation: { yaw: number; pitc
   const expansion = expansionTargets[target.id] ?? { x: 0, y: 0 };
   const wobbleX = Math.sin((rotation.yaw * Math.PI) / 180) * 24;
   const wobbleY = Math.sin((rotation.pitch * Math.PI) / 90) * 22;
+  const x = expansion.x - wobbleX;
+  const y = expansion.y + wobbleY;
   return {
-    x: expansion.x - wobbleX,
-    y: expansion.y + wobbleY,
-    angleX: (expansion.x - wobbleX) / 12,
-    angleY: (expansion.y + wobbleY) / 12,
-    visible: true,
+    x,
+    y,
+    angleX: x / 12,
+    angleY: y / 12,
+    visible: Math.abs(x) < 260 && Math.abs(y) < 250,
   };
 }
 
@@ -459,8 +463,14 @@ const styles = StyleSheet.create({
     borderRadius: 31,
     backgroundColor: "rgba(28, 220, 70, 0.72)",
   },
+  firstTargetDot: {
+    backgroundColor: "rgba(28, 235, 75, 0.92)",
+  },
   activeTargetDot: {
     backgroundColor: "rgba(255, 64, 72, 0.92)",
+  },
+  inactiveTargetDot: {
+    backgroundColor: "rgba(28, 220, 70, 0.62)",
   },
   nearTargetDot: {
     backgroundColor: "rgba(245, 210, 58, 0.86)",
@@ -561,7 +571,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#0a0a0a",
   },
   capturedPlane: {
-    width: "92%",
+    width: "108%",
     aspectRatio: 0.76,
     borderWidth: 1,
     borderColor: "#ffffff",
