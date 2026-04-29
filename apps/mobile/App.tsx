@@ -152,6 +152,7 @@ export default function App() {
   const [capturedIds, setCapturedIds] = useState<number[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [frozenPan, setFrozenPan] = useState({ x: 0, y: 0 });
   const [gravityZ, setGravityZ] = useState(0);
   const [firstFrameUri, setFirstFrameUri] = useState("");
   const [firstFramePan, setFirstFramePan] = useState({ x: 0, y: 0 });
@@ -162,6 +163,7 @@ export default function App() {
   const originRef = useRef<MotionOrigin | null>(null);
   const cameraRef = useRef<CameraView | null>(null);
   const panRef = useRef({ x: 0, y: 0 });
+  const frozenPanRef = useRef({ x: 0, y: 0 });
   const holdStartRef = useRef<number | null>(null);
   const completingRef = useRef(false);
   const activeIndexRef = useRef(0);
@@ -237,6 +239,22 @@ export default function App() {
   useEffect(() => {
     panRef.current = pan;
   }, [pan]);
+
+  useEffect(() => {
+    if (!firstFrameUri) {
+      frozenPanRef.current = pan;
+      setFrozenPan(pan);
+      return;
+    }
+
+    const nextPan = {
+      x: frozenPanRef.current.x + (pan.x - frozenPanRef.current.x) * 0.16,
+      y: frozenPanRef.current.y + (pan.y - frozenPanRef.current.y) * 0.16,
+    };
+
+    frozenPanRef.current = nextPan;
+    setFrozenPan(nextPan);
+  }, [firstFrameUri, pan]);
 
   useEffect(() => {
     if (!isCapturing) return;
@@ -319,6 +337,8 @@ export default function App() {
     await DeviceMotion.requestPermissionsAsync();
     originRef.current = null;
     setPan({ x: 0, y: 0 });
+    setFrozenPan({ x: 0, y: 0 });
+    frozenPanRef.current = { x: 0, y: 0 };
     setGravityZ(0);
     setFirstFrameUri("");
     setFirstFramePan({ x: 0, y: 0 });
@@ -386,8 +406,8 @@ export default function App() {
 
   if (isCapturing) {
     const frozenFrameOffset = {
-      x: pan.x - firstFramePan.x,
-      y: pan.y - firstFramePan.y,
+      x: frozenPan.x - firstFramePan.x,
+      y: frozenPan.y - firstFramePan.y,
     };
 
     return (
@@ -400,10 +420,12 @@ export default function App() {
                 styles.frozenFrame,
                 {
                   transform: [
-                    { perspective: 900 },
-                    { translateX: frozenFrameOffset.x },
-                    { translateY: frozenFrameOffset.y },
-                    { rotateZ: `${clamp(frozenFrameOffset.x * 0.025, -18, 18)}deg` },
+                    { perspective: 700 },
+                    { translateX: -frozenFrameOffset.x * 1.25 },
+                    { translateY: -frozenFrameOffset.y * 0.85 },
+                    { rotateY: `${clamp(frozenFrameOffset.x * 0.12, -46, 46)}deg` },
+                    { rotateX: `${clamp(-frozenFrameOffset.y * 0.08, -32, 32)}deg` },
+                    { rotateZ: `${clamp(-frozenFrameOffset.x * 0.012, -8, 8)}deg` },
                   ],
                 },
               ]}
