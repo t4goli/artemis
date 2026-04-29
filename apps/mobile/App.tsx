@@ -30,6 +30,7 @@ const CENTER = { x: SCREEN_WIDTH / 2, y: SCREEN_HEIGHT / 2 };
 const FIRST_DOT_SIZE = Math.min(SCREEN_WIDTH * 0.92, 370);
 const FIRST_DOT_NORMAL_DISTANCE = 72;
 const FIRST_DOT_FAR_DISTANCE = 260;
+const FIRST_DOT_MAX_SIDE_DRIFT = 18;
 
 type CaptureTarget = {
   id: number;
@@ -44,7 +45,7 @@ type MotionOrigin = {
 };
 
 const TARGETS: CaptureTarget[] = [
-  { id: 0, x: 0, y: -245 },
+  { id: 0, x: 0, y: 0 },
   { id: 1, x: 165, y: 0 },
   { id: 2, x: -165, y: 0 },
   { id: 3, x: 0, y: -170 },
@@ -85,10 +86,8 @@ function motionToPose(motion: DeviceMotionMeasurement): MotionOrigin | null {
 }
 
 function targetScreenPosition(target: CaptureTarget, pan: { x: number; y: number }) {
-  const horizontalPan = target.id === 0 ? pan.x * 0.05 : pan.x;
-
   return {
-    x: CENTER.x + target.x + horizontalPan,
+    x: CENTER.x + target.x + pan.x,
     y: CENTER.y + target.y + pan.y,
   };
 }
@@ -142,9 +141,14 @@ export default function App() {
   const pulse = useRef(new Animated.Value(0)).current;
 
   const activeTarget = TARGETS[activeIndex] ?? TARGETS[TARGETS.length - 1];
-  const activeOffset = targetOffsetFromCenter(activeTarget, pan);
   const capturedCount = capturedIds.length;
   const isFirstTarget = capturedCount === 0 && activeIndex === 0;
+  const firstTargetTravel = clamp(Math.abs(pan.y), 0, FIRST_DOT_FAR_DISTANCE);
+  const firstTargetOffset = {
+    x: clamp(pan.x * 0.03, -FIRST_DOT_MAX_SIDE_DRIFT, FIRST_DOT_MAX_SIDE_DRIFT),
+    y: -FIRST_DOT_FAR_DISTANCE + firstTargetTravel,
+  };
+  const activeOffset = isFirstTarget ? firstTargetOffset : targetOffsetFromCenter(activeTarget, pan);
   const firstTargetVerticalDistance = Math.abs(activeOffset.y);
   const activeDistance = isFirstTarget ? firstTargetVerticalDistance : Math.hypot(activeOffset.x, activeOffset.y);
   const activeLockRadius = isFirstTarget ? FIRST_LOCK_RADIUS : LOCK_RADIUS;
@@ -325,7 +329,10 @@ export default function App() {
         <View style={styles.targetLayer} pointerEvents="none">
           {visibleTargets.map((target) => {
             const index = TARGETS.findIndex((item) => item.id === target.id);
-            const position = targetScreenPosition(target, pan);
+            const position =
+              capturedCount === 0
+                ? { x: CENTER.x + firstTargetOffset.x, y: CENTER.y + firstTargetOffset.y }
+                : targetScreenPosition(target, pan);
             const captured = capturedIds.includes(target.id);
             const current = index === activeIndex;
             const dotSize = capturedCount === 0 && current ? firstDotSize(firstTargetVerticalDistance) : DOT_SIZE;
