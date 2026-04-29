@@ -1,22 +1,19 @@
 import { CameraView, useCameraPermissions } from "expo-camera";
+import { DeviceMotion, type DeviceMotionMeasurement } from "expo-sensors";
 import { StatusBar } from "expo-status-bar";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 type Target = {
   id: number;
   yaw: number;
-  offsetX: number;
-  offsetY: number;
   pitch: "level" | "up" | "down";
   captured: boolean;
 };
 
 const initialTargets: Target[] = Array.from({ length: 16 }, (_, index) => ({
   id: index,
-  yaw: Math.round(index * 22.5),
-  offsetX: [-118, 96, -74, 132, -42, 84, -126, 58, 116, -90, -38, 72, 122, -110, 36, -70][index],
-  offsetY: [32, -24, 92, -86, -10, 66, -58, 118, 14, -112, -150, -132, -166, 154, 132, 170][index],
+  yaw: Math.round((35 + index * 22.5) % 360),
   pitch: index < 10 ? "level" : index < 13 ? "up" : "down",
   captured: false,
 }));
@@ -27,10 +24,14 @@ export default function App() {
   const [isCapturing, setIsCapturing] = useState(false);
   const [targets, setTargets] = useState(initialTargets);
   const [activeTargetIndex, setActiveTargetIndex] = useState(0);
-  const [isAligned, setIsAligned] = useState(false);
+  const [manualHold, setManualHold] = useState(false);
+  const [deviceRotation, setDeviceRotation] = useState({ yaw: 0, pitch: 0 });
+  const [originYaw, setOriginYaw] = useState<number | null>(null);
 
   const activeTarget = targets[activeTargetIndex];
   const capturedCount = targets.filter((target) => target.captured).length;
+  const targetOffset = useMemo(() => projectTarget(activeTarget, deviceRotation), [activeTarget, deviceRotation]);
+  const isAligned = Math.abs(targetOffset.x) < 34 && Math.abs(targetOffset.y) < 34;
   const guidance = useMemo(() => {
     if (!activeTarget) return "All targets captured. Ready to upload.";
     if (activeTarget.pitch === "up") return "Tilt up and line up with the red dot.";
@@ -44,16 +45,37 @@ export default function App() {
       if (!permission.granted) return;
     }
 
+    await DeviceMotion.requestPermissionsAsync();
+    DeviceMotion.setUpdateInterval(50);
     setTargets(initialTargets);
     setActiveTargetIndex(0);
-    setIsAligned(false);
+    setManualHold(false);
+    setOriginYaw(null);
     setIsCapturing(true);
   }
 
+  useEffect(() => {
+    if (!isCapturing) return;
+
+    const subscription = DeviceMotion.addListener((motion) => {
+      const nextRotation = getRotation(motion);
+      setOriginYaw((currentOrigin) => currentOrigin ?? nextRotation.yaw);
+      setDeviceRotation((currentRotation) => {
+        const yawOrigin = originYaw ?? nextRotation.yaw;
+        return {
+          yaw: normalizeDegrees(nextRotation.yaw - yawOrigin),
+          pitch: nextRotation.pitch,
+        };
+      });
+    });
+
+    return () => subscription.remove();
+  }, [isCapturing, originYaw]);
+
   function simulateAlignment() {
     if (!activeTarget) return;
-    if (!isAligned) {
-      setIsAligned(true);
+    if (!manualHold && !isAligned) {
+      setManualHold(true);
       return;
     }
 
@@ -61,7 +83,7 @@ export default function App() {
       currentTargets.map((target) => (target.id === activeTarget.id ? { ...target, captured: true } : target))
     );
     setActiveTargetIndex((index) => Math.min(index + 1, targets.length));
-    setIsAligned(false);
+    setManualHold(false);
   }
 
   if (!isCapturing) {
@@ -129,12 +151,7 @@ export default function App() {
           <View
             style={[
               styles.targetCircle,
-              {
-                transform: [
-                  { translateX: activeTarget?.offsetX ?? 0 },
-                  { translateY: activeTarget?.offsetY ?? 0 },
-                ],
-              },
+              { transform: [{ translateX: targetOffset.x }, { translateY: targetOffset.y }] },
               isAligned && styles.targetCircleAligned,
             ]}
           >
@@ -158,7 +175,9 @@ export default function App() {
         <View style={styles.guidanceCard}>
           <Text style={styles.guidanceTitle}>{isAligned ? "Hold steady" : guidance}</Text>
           <Text style={styles.guidanceText}>
-            {isAligned ? "Capturing once the target stays green." : `Target ${activeTargetIndex + 1}: ${activeTarget?.yaw ?? 0} degrees`}
+            {isAligned
+              ? "Capturing once the target stays green."
+              : `Target ${activeTargetIndex + 1}: turn ${formatTurn(targetOffset.x)}, tilt ${formatTilt(targetOffset.y)}`}
           </Text>
         </View>
       </View>
@@ -177,10 +196,56 @@ export default function App() {
       </View>
 
       <TouchableOpacity style={styles.primaryButton} activeOpacity={0.88} onPress={simulateAlignment}>
-        <Text style={styles.primaryButtonText}>{isAligned ? "Simulate capture" : "Simulate align"}</Text>
+        <Text style={styles.primaryButtonText}>{isAligned || manualHold ? "Simulate capture" : "Skip to capture"}</Text>
       </TouchableOpacity>
     </SafeAreaView>
   );
+}
+
+function getRotation(motion: DeviceMotionMeasurement) {
+  return {
+    yaw: normalizeDegrees(toDegrees(motion.rotation.alpha)),
+    pitch: clamp(toDegrees(motion.rotation.beta), -75, 75),
+  };
+}
+
+function projectTarget(target: Target | undefined, rotation: { yaw: number; pitch: number }) {
+  if (!target) return { x: 0, y: 0 };
+  const pitchTargets = {
+    level: 0,
+    up: 42,
+    down: -42,
+  };
+  const x = clamp(shortestAngle(target.yaw - rotation.yaw) * 5.4, -150, 150);
+  const y = clamp((rotation.pitch - pitchTargets[target.pitch]) * 4.2, -190, 190);
+  return { x, y };
+}
+
+function toDegrees(value: number) {
+  return Math.abs(value) <= Math.PI * 2 ? (value * 180) / Math.PI : value;
+}
+
+function normalizeDegrees(value: number) {
+  return ((value % 360) + 360) % 360;
+}
+
+function shortestAngle(value: number) {
+  const normalized = ((value + 180) % 360) - 180;
+  return normalized < -180 ? normalized + 360 : normalized;
+}
+
+function formatTurn(offsetX: number) {
+  if (Math.abs(offsetX) < 34) return "hold";
+  return offsetX > 0 ? "right" : "left";
+}
+
+function formatTilt(offsetY: number) {
+  if (Math.abs(offsetY) < 34) return "hold";
+  return offsetY > 0 ? "down" : "up";
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
 }
 
 const styles = StyleSheet.create({
