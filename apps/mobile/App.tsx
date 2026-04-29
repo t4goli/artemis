@@ -85,7 +85,7 @@ function motionToPose(motion: DeviceMotionMeasurement): MotionOrigin | null {
 }
 
 function targetScreenPosition(target: CaptureTarget, pan: { x: number; y: number }) {
-  const horizontalPan = target.id === 0 ? pan.x * 0.18 : pan.x;
+  const horizontalPan = target.id === 0 ? pan.x * 0.05 : pan.x;
 
   return {
     x: CENTER.x + target.x + horizontalPan,
@@ -143,9 +143,10 @@ export default function App() {
 
   const activeTarget = TARGETS[activeIndex] ?? TARGETS[TARGETS.length - 1];
   const activeOffset = targetOffsetFromCenter(activeTarget, pan);
-  const activeDistance = Math.hypot(activeOffset.x, activeOffset.y);
   const capturedCount = capturedIds.length;
   const isFirstTarget = capturedCount === 0 && activeIndex === 0;
+  const firstTargetVerticalDistance = Math.abs(activeOffset.y);
+  const activeDistance = isFirstTarget ? firstTargetVerticalDistance : Math.hypot(activeOffset.x, activeOffset.y);
   const activeLockRadius = isFirstTarget ? FIRST_LOCK_RADIUS : LOCK_RADIUS;
   const isLocked = activeDistance <= activeLockRadius;
   const progress = capturedCount / TARGETS.length;
@@ -327,8 +328,8 @@ export default function App() {
             const position = targetScreenPosition(target, pan);
             const captured = capturedIds.includes(target.id);
             const current = index === activeIndex;
-            const dotSize = capturedCount === 0 && current ? firstDotSize(activeDistance) : DOT_SIZE;
-            const dotColor = motionWarning && !captured ? RED : GREEN;
+            const dotSize = capturedCount === 0 && current ? firstDotSize(firstTargetVerticalDistance) : DOT_SIZE;
+            const dotColor = motionWarning && !captured && !isFirstTarget ? RED : GREEN;
             const dot = (
               <Animated.View
                 key={target.id}
@@ -397,7 +398,7 @@ export default function App() {
 
           <View style={styles.instructionWrap}>
             <Text style={styles.instructionText}>
-              {motionWarning
+              {motionWarning && !isFirstTarget
                 ? "Return to your original spot before capturing."
                 : capturedCount === 0
                   ? "Point your device at the blue target"
