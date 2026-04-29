@@ -436,29 +436,24 @@ export default function App() {
         {firstFrameUri ? (
           <>
             <CameraView style={styles.cameraFrame} facing="back" autofocus="on" />
-            <View
+            <Image
+              source={{ uri: firstFrameUri }}
               style={[
-                styles.capturedPlane,
+                styles.capturedPhotoPlane,
                 {
                   opacity: planeVisible ? 1 : 0,
                   transform: [
-                    { perspective: 920 },
-                    { translateX: clamp(-planeYaw * 4.2, -360, 360) },
-                    { translateY: clamp(planePitch * 4.4, -300, 300) },
-                    { rotateY: `${clamp(-planeYaw * 0.72, -54, 54)}deg` },
-                    { rotateX: `${clamp(planePitch * 0.72, -48, 48)}deg` },
+                    { perspective: 880 },
+                    { translateX: clamp(-planeYaw * 5.2, -420, 420) },
+                    { translateY: clamp(planePitch * 5.4, -360, 360) },
+                    { rotateY: `${clamp(-planeYaw * 0.78, -58, 58)}deg` },
+                    { rotateX: `${clamp(planePitch * 0.78, -52, 52)}deg` },
                     { rotateZ: `${clamp(planeRoll * 0.05, -2, 2)}deg` },
                   ],
                 },
               ]}
-            >
-              <View style={styles.capturedPlaneFrame}>
-                <Image
-                  source={{ uri: firstFrameUri }}
-                  style={styles.frozenFrame}
-                />
-              </View>
-            </View>
+            />
+            <View style={styles.captureGuideFrame} />
           </>
         ) : (
           <CameraView ref={cameraRef} style={styles.cameraFrame} facing="back" autofocus="on" />
@@ -690,29 +685,25 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     width: "72%",
   },
-  capturedPlane: {
-    alignItems: "center",
+  capturedPhotoPlane: {
     backfaceVisibility: "hidden",
     height: CAMERA_FRAME_HEIGHT,
-    justifyContent: "center",
+    left: CAMERA_FRAME_LEFT,
+    opacity: 0.9,
+    position: "absolute",
+    resizeMode: "cover",
+    top: CAMERA_FRAME_TOP,
+    width: CAMERA_FRAME_WIDTH,
+  },
+  captureGuideFrame: {
+    aspectRatio: 0.75,
+    backgroundColor: "transparent",
+    borderColor: "#ffffff",
+    borderWidth: 1.5,
     left: CAMERA_FRAME_LEFT,
     position: "absolute",
     top: CAMERA_FRAME_TOP,
     width: CAMERA_FRAME_WIDTH,
-  },
-  capturedPlaneFrame: {
-    backgroundColor: "transparent",
-    borderColor: "#ffffff",
-    borderWidth: 1.5,
-    height: "100%",
-    overflow: "hidden",
-    width: "100%",
-  },
-  frozenFrame: {
-    ...StyleSheet.absoluteFillObject,
-    backfaceVisibility: "hidden",
-    opacity: 0.9,
-    resizeMode: "cover",
   },
   targetLayer: {
     ...StyleSheet.absoluteFillObject,
