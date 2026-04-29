@@ -26,7 +26,8 @@ const MOTION_INTERVAL_MS = 40;
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const CENTER = { x: SCREEN_WIDTH / 2, y: SCREEN_HEIGHT / 2 };
 const FIRST_DOT_SIZE = Math.min(SCREEN_WIDTH * 0.92, 370);
-const FIRST_LOCK_RADIUS = FIRST_DOT_SIZE / 2 + RETICLE_SIZE / 2 - 10;
+const FIRST_DOT_NORMAL_DISTANCE = 72;
+const FIRST_DOT_FAR_DISTANCE = 260;
 
 type CaptureTarget = {
   id: number;
@@ -82,8 +83,10 @@ function motionToPose(motion: DeviceMotionMeasurement): MotionOrigin | null {
 }
 
 function targetScreenPosition(target: CaptureTarget, pan: { x: number; y: number }) {
+  const horizontalPan = target.id === 0 ? pan.x * 0.18 : pan.x;
+
   return {
-    x: CENTER.x + target.x + pan.x,
+    x: CENTER.x + target.x + horizontalPan,
     y: CENTER.y + target.y + pan.y,
   };
 }
@@ -102,6 +105,20 @@ function directionText(offset: { x: number; y: number }) {
   }
 
   return offset.y > 0 ? "Tilt your device down" : "Tilt your device up";
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function firstDotSize(distance: number) {
+  const t = clamp(
+    (distance - FIRST_DOT_NORMAL_DISTANCE) / (FIRST_DOT_FAR_DISTANCE - FIRST_DOT_NORMAL_DISTANCE),
+    0,
+    1,
+  );
+
+  return DOT_SIZE + (FIRST_DOT_SIZE - DOT_SIZE) * t;
 }
 
 export default function App() {
@@ -127,7 +144,7 @@ export default function App() {
   const activeDistance = Math.hypot(activeOffset.x, activeOffset.y);
   const capturedCount = capturedIds.length;
   const isFirstTarget = capturedCount === 0 && activeIndex === 0;
-  const activeLockRadius = isFirstTarget ? FIRST_LOCK_RADIUS : LOCK_RADIUS;
+  const activeLockRadius = isFirstTarget ? FIRST_DOT_NORMAL_DISTANCE : LOCK_RADIUS;
   const isLocked = activeDistance <= activeLockRadius;
   const progress = capturedCount / TARGETS.length;
   const visibleTargets = capturedCount === 0 ? [activeTarget] : TARGETS;
@@ -312,7 +329,7 @@ export default function App() {
             const position = targetScreenPosition(target, pan);
             const captured = capturedIds.includes(target.id);
             const current = index === activeIndex;
-            const dotSize = capturedCount === 0 && current ? FIRST_DOT_SIZE : DOT_SIZE;
+            const dotSize = capturedCount === 0 && current ? firstDotSize(activeDistance) : DOT_SIZE;
             const dotColor = motionWarning && !captured ? RED : GREEN;
             const dot = (
               <Animated.View
