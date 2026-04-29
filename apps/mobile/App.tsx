@@ -186,7 +186,8 @@ export default function App() {
   const activeLockRadius = isFirstTarget ? FIRST_LOCK_RADIUS : LOCK_RADIUS;
   const isLocked = activeDistance <= activeLockRadius;
   const progress = capturedCount / TARGETS.length;
-  const visibleTargets = capturedCount === 0 ? [activeTarget] : capturedCount === 1 ? TARGETS.slice(1, 5) : TARGETS;
+  const isSideTargetStage = capturedCount > 0 && capturedCount < 5;
+  const visibleTargets = capturedCount === 0 ? [activeTarget] : isSideTargetStage ? TARGETS.slice(1, 5) : TARGETS;
 
   const pulseStyle = useMemo(
     () => ({
@@ -441,7 +442,7 @@ export default function App() {
             const position =
               capturedCount === 0
                 ? { x: CENTER.x + firstTargetOffset.x, y: CENTER.y + firstTargetOffset.y }
-                : capturedCount === 1
+                : isSideTargetStage
                   ? sideTargetPosition(target)
                 : targetScreenPosition(target, pan);
             const captured = capturedIds.includes(target.id);
