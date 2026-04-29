@@ -445,7 +445,7 @@ export default function App() {
                   opacity: photoVisible ? 1 : 0,
                   transform: [
                     { translateX: clamp(photoYaw * PHOTO_PIXELS_PER_YAW_DEGREE, -SCREEN_WIDTH * 1.4, SCREEN_WIDTH * 1.4) },
-                    { translateY: clamp(photoPitch * PHOTO_PIXELS_PER_PITCH_DEGREE, -SCREEN_HEIGHT, SCREEN_HEIGHT) },
+                    { translateY: clamp(-photoPitch * PHOTO_PIXELS_PER_PITCH_DEGREE, -SCREEN_HEIGHT, SCREEN_HEIGHT) },
                   ],
                 },
               ]}
