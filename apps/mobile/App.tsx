@@ -130,6 +130,7 @@ export default function App() {
   const [capturedIds, setCapturedIds] = useState<number[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [gravityZ, setGravityZ] = useState(0);
   const [holdProgress, setHoldProgress] = useState(0);
   const [showNudge, setShowNudge] = useState(false);
   const [motionWarning, setMotionWarning] = useState(false);
@@ -143,9 +144,10 @@ export default function App() {
   const activeTarget = TARGETS[activeIndex] ?? TARGETS[TARGETS.length - 1];
   const capturedCount = capturedIds.length;
   const isFirstTarget = capturedCount === 0 && activeIndex === 0;
+  const isPointingAtCeiling = gravityZ < -4;
   const firstTargetOffset = {
     x: clamp(pan.x * 0.03, -FIRST_DOT_MAX_SIDE_DRIFT, FIRST_DOT_MAX_SIDE_DRIFT),
-    y: clamp(pan.y, -FIRST_DOT_FAR_DISTANCE, FIRST_DOT_FAR_DISTANCE),
+    y: clamp(isPointingAtCeiling ? Math.abs(pan.y) : pan.y, -FIRST_DOT_FAR_DISTANCE, FIRST_DOT_FAR_DISTANCE),
   };
   const activeOffset = isFirstTarget ? firstTargetOffset : targetOffsetFromCenter(activeTarget, pan);
   const firstTargetVerticalDistance = Math.abs(activeOffset.y);
@@ -226,6 +228,7 @@ export default function App() {
       });
 
       setMotionWarning(Math.abs(rollDelta) > 42);
+      setGravityZ(motion.accelerationIncludingGravity.z);
     });
 
     return () => subscription.remove();
@@ -283,6 +286,7 @@ export default function App() {
     await DeviceMotion.requestPermissionsAsync();
     originRef.current = null;
     setPan({ x: 0, y: 0 });
+    setGravityZ(0);
     setCapturedIds([]);
     setActiveIndex(0);
     setHoldProgress(0);
