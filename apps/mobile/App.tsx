@@ -6,6 +6,8 @@ import { SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } fro
 type Target = {
   id: number;
   yaw: number;
+  offsetX: number;
+  offsetY: number;
   pitch: "level" | "up" | "down";
   captured: boolean;
 };
@@ -13,6 +15,8 @@ type Target = {
 const initialTargets: Target[] = Array.from({ length: 16 }, (_, index) => ({
   id: index,
   yaw: Math.round(index * 22.5),
+  offsetX: [-118, 96, -74, 132, -42, 84, -126, 58, 116, -90, -38, 72, 122, -110, 36, -70][index],
+  offsetY: [32, -24, 92, -86, -10, 66, -58, 118, 14, -112, -150, -132, -166, 154, 132, 170][index],
   pitch: index < 10 ? "level" : index < 13 ? "up" : "down",
   captured: false,
 }));
@@ -121,8 +125,19 @@ export default function App() {
           </View>
         )}
 
-        <View style={styles.aimLayer}>
-          <View style={[styles.targetCircle, isAligned && styles.targetCircleAligned]}>
+          <View style={styles.aimLayer}>
+          <View
+            style={[
+              styles.targetCircle,
+              {
+                transform: [
+                  { translateX: activeTarget?.offsetX ?? 0 },
+                  { translateY: activeTarget?.offsetY ?? 0 },
+                ],
+              },
+              isAligned && styles.targetCircleAligned,
+            ]}
+          >
             <View style={[styles.innerTarget, isAligned && styles.innerTargetAligned]} />
           </View>
           <View style={styles.deviceCircle} />
