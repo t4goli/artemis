@@ -20,6 +20,7 @@ const TEXT_MUTED = "#888888";
 const DOT_SIZE = 50;
 const RETICLE_SIZE = 64;
 const LOCK_RADIUS = 42;
+const FIRST_LOCK_RADIUS = 38;
 const HOLD_MS = 1000;
 const FIRST_HOLD_MS = 2400;
 const MOTION_INTERVAL_MS = 40;
@@ -145,7 +146,7 @@ export default function App() {
   const activeDistance = Math.hypot(activeOffset.x, activeOffset.y);
   const capturedCount = capturedIds.length;
   const isFirstTarget = capturedCount === 0 && activeIndex === 0;
-  const activeLockRadius = isFirstTarget ? FIRST_DOT_NORMAL_DISTANCE : LOCK_RADIUS;
+  const activeLockRadius = isFirstTarget ? FIRST_LOCK_RADIUS : LOCK_RADIUS;
   const isLocked = activeDistance <= activeLockRadius;
   const progress = capturedCount / TARGETS.length;
   const visibleTargets = capturedCount === 0 ? [activeTarget] : TARGETS;
