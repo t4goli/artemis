@@ -18,6 +18,7 @@ const RED = "#e03030";
 const BUTTON = "#e0e0e0";
 const TEXT_MUTED = "#888888";
 const DOT_SIZE = 50;
+const FIRST_DOT_SIZE = 118;
 const RETICLE_SIZE = 64;
 const LOCK_RADIUS = 42;
 const HOLD_MS = 1000;
@@ -39,7 +40,7 @@ type MotionOrigin = {
 };
 
 const TARGETS: CaptureTarget[] = [
-  { id: 0, x: 0, y: -58 },
+  { id: 0, x: 0, y: -205 },
   { id: 1, x: 165, y: 0 },
   { id: 2, x: -165, y: 0 },
   { id: 3, x: 0, y: -170 },
@@ -303,6 +304,7 @@ export default function App() {
             const position = targetScreenPosition(target, pan);
             const captured = capturedIds.includes(target.id);
             const current = index === activeIndex;
+            const dotSize = capturedCount === 0 && current && !isLocked ? FIRST_DOT_SIZE : DOT_SIZE;
             const dotColor = motionWarning && !captured ? RED : GREEN;
             const dot = (
               <Animated.View
@@ -310,8 +312,11 @@ export default function App() {
                 style={[
                   styles.dot,
                   {
-                    left: position.x - DOT_SIZE / 2,
-                    top: position.y - DOT_SIZE / 2,
+                    borderRadius: dotSize / 2,
+                    height: dotSize,
+                    left: position.x - dotSize / 2,
+                    top: position.y - dotSize / 2,
+                    width: dotSize,
                     backgroundColor: dotColor,
                     opacity: captured ? 0.4 : 1,
                   },
