@@ -42,6 +42,9 @@ const PHOTO_HALF_FOV_X = 46;
 const PHOTO_HALF_FOV_Y = 38;
 const PHOTO_PIXELS_PER_YAW_DEGREE = CAMERA_FRAME_WIDTH / PHOTO_HALF_FOV_X;
 const PHOTO_PIXELS_PER_PITCH_DEGREE = CAMERA_FRAME_HEIGHT / PHOTO_HALF_FOV_Y;
+const PHOTO_EXIT_ANGLE = 84;
+const PHOTO_YAW_DAMP_START_PITCH = 28;
+const PHOTO_YAW_DAMP_END_PITCH = 66;
 
 type CaptureTarget = {
   id: number;
@@ -151,6 +154,24 @@ function firstDotSize(distance: number) {
   );
 
   return DOT_SIZE + (FIRST_DOT_SIZE - DOT_SIZE) * t;
+}
+
+function projectedPhotoPlacement(yaw: number, pitch: number) {
+  const yawAmount = Math.abs(yaw);
+  const pitchAmount = Math.abs(pitch);
+  const yawDamp = clamp(
+    1 - (pitchAmount - PHOTO_YAW_DAMP_START_PITCH) / (PHOTO_YAW_DAMP_END_PITCH - PHOTO_YAW_DAMP_START_PITCH),
+    0,
+    1,
+  );
+  const angleAmount = Math.max(yawAmount, pitchAmount);
+
+  return {
+    visible: yawAmount < PHOTO_EXIT_ANGLE && pitchAmount < PHOTO_EXIT_ANGLE,
+    scale: clamp(1 - (angleAmount / PHOTO_EXIT_ANGLE) * 0.38, 0.58, 1),
+    x: clamp(yaw * yawDamp * PHOTO_PIXELS_PER_YAW_DEGREE, -SCREEN_WIDTH * 1.4, SCREEN_WIDTH * 1.4),
+    y: clamp(pitch * PHOTO_PIXELS_PER_PITCH_DEGREE, -SCREEN_HEIGHT, SCREEN_HEIGHT),
+  };
 }
 
 export default function App() {
@@ -431,7 +452,7 @@ export default function App() {
     };
     const photoYaw = deadzone(frozenAngleOffset.yaw, 0.6);
     const photoPitch = deadzone(frozenAngleOffset.pitch, 0.6);
-    const photoVisible = Math.abs(photoYaw) < PHOTO_HALF_FOV_X * 1.25 && Math.abs(photoPitch) < PHOTO_HALF_FOV_Y * 1.25;
+    const photoPlacement = projectedPhotoPlacement(photoYaw, photoPitch);
 
     return (
       <View style={styles.captureScreen}>
@@ -442,10 +463,11 @@ export default function App() {
               style={[
                 styles.capturedPhotoPlane,
                 {
-                  opacity: photoVisible ? 1 : 0,
+                  opacity: photoPlacement.visible ? 1 : 0,
                   transform: [
-                    { translateX: clamp(photoYaw * PHOTO_PIXELS_PER_YAW_DEGREE, -SCREEN_WIDTH * 1.4, SCREEN_WIDTH * 1.4) },
-                    { translateY: clamp(-photoPitch * PHOTO_PIXELS_PER_PITCH_DEGREE, -SCREEN_HEIGHT, SCREEN_HEIGHT) },
+                    { translateX: photoPlacement.x },
+                    { translateY: photoPlacement.y },
+                    { scale: photoPlacement.scale },
                   ],
                 },
               ]}
