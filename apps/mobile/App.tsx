@@ -21,6 +21,8 @@ const DOT_SIZE = 50;
 const FIRST_DOT_SIZE = 118;
 const RETICLE_SIZE = 64;
 const LOCK_RADIUS = 42;
+const FIRST_LOCK_RADIUS = 76;
+const FIRST_DOT_SHRINK_RADIUS = 118;
 const HOLD_MS = 1000;
 const MOTION_INTERVAL_MS = 40;
 
@@ -40,7 +42,7 @@ type MotionOrigin = {
 };
 
 const TARGETS: CaptureTarget[] = [
-  { id: 0, x: 0, y: -205 },
+  { id: 0, x: 0, y: -155 },
   { id: 1, x: 165, y: 0 },
   { id: 2, x: -165, y: 0 },
   { id: 3, x: 0, y: -170 },
@@ -124,8 +126,10 @@ export default function App() {
   const activeTarget = TARGETS[activeIndex] ?? TARGETS[TARGETS.length - 1];
   const activeOffset = targetOffsetFromCenter(activeTarget, pan);
   const activeDistance = Math.hypot(activeOffset.x, activeOffset.y);
-  const isLocked = activeDistance <= LOCK_RADIUS;
   const capturedCount = capturedIds.length;
+  const isFirstTarget = capturedCount === 0 && activeIndex === 0;
+  const activeLockRadius = isFirstTarget ? FIRST_LOCK_RADIUS : LOCK_RADIUS;
+  const isLocked = activeDistance <= activeLockRadius;
   const progress = capturedCount / TARGETS.length;
   const visibleTargets = capturedCount === 0 ? [activeTarget] : TARGETS;
 
@@ -304,7 +308,9 @@ export default function App() {
             const position = targetScreenPosition(target, pan);
             const captured = capturedIds.includes(target.id);
             const current = index === activeIndex;
-            const dotSize = capturedCount === 0 && current && !isLocked ? FIRST_DOT_SIZE : DOT_SIZE;
+            const showLargeFirstTarget =
+              capturedCount === 0 && current && activeDistance > FIRST_DOT_SHRINK_RADIUS;
+            const dotSize = showLargeFirstTarget ? FIRST_DOT_SIZE : DOT_SIZE;
             const dotColor = motionWarning && !captured ? RED : GREEN;
             const dot = (
               <Animated.View
