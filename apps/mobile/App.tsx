@@ -430,7 +430,8 @@ export default function App() {
       roll: frozenMotionDelta.roll - firstFrameMotionDelta.roll,
     };
     const photoYaw = deadzone(frozenAngleOffset.yaw, 0.8);
-    const photoPitch = deadzone(frozenAngleOffset.pitch, 0.6);
+    const rawPhotoPitch = deadzone(frozenAngleOffset.pitch, 0.6);
+    const photoPitch = rawPhotoPitch < 0 ? rawPhotoPitch * 0.45 : rawPhotoPitch;
     const photoVisible = Math.abs(photoYaw) < PHOTO_HALF_FOV_X * 1.45 && Math.abs(photoPitch) < PHOTO_HALF_FOV_Y * 1.45;
 
     return (
