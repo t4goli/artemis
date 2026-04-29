@@ -43,7 +43,8 @@ export default function App() {
       .slice(0, 5);
   }, [activeTarget, capturedCount, deviceRotation, targets]);
   const activeProjection = useMemo(() => projectTarget(activeTarget, deviceRotation), [activeTarget, deviceRotation]);
-  const isAligned = Math.abs(activeProjection.x) < 54 && Math.abs(activeProjection.y) < 54;
+  const alignmentDistance = Math.hypot(activeProjection.x, activeProjection.y);
+  const isAligned = alignmentDistance < 70;
   const guidance = useMemo(() => {
     if (!activeTarget) return "All targets captured. Ready to upload.";
     if (activeTarget.pitch === "up") return "Tilt up and line up with the red dot.";
@@ -217,6 +218,7 @@ export default function App() {
                 style={[
                   styles.targetDot,
                   target.id === activeTarget?.id && styles.activeTargetDot,
+                  target.id === activeTarget?.id && alignmentDistance < 120 && styles.nearTargetDot,
                   target.id === activeTarget?.id && isAligned && styles.alignedTargetDot,
                   { transform: [{ translateX: projection.x }, { translateY: projection.y }] },
                 ]}
@@ -266,12 +268,12 @@ function projectTarget(target: Target | undefined, rotation: { yaw: number; pitc
     up: 42,
     down: -42,
   };
-  const rawX = shortestAngle(target.yaw - rotation.yaw) * 4.1;
-  const rawY = (rotation.pitch - pitchTargets[target.pitch]) * 3.4;
+  const rawX = shortestAngle(target.yaw - rotation.yaw) * 2.2;
+  const rawY = (rotation.pitch - pitchTargets[target.pitch]) * 2.1;
   return {
-    x: clamp(rawX, -210, 210),
-    y: clamp(rawY, -250, 250),
-    visible: Math.abs(rawX) < 265 && Math.abs(rawY) < 300,
+    x: clamp(rawX, -125, 125),
+    y: clamp(rawY, -150, 150),
+    visible: Math.abs(rawX) < 190 && Math.abs(rawY) < 220,
   };
 }
 
@@ -440,6 +442,9 @@ const styles = StyleSheet.create({
   },
   activeTargetDot: {
     backgroundColor: "rgba(255, 64, 72, 0.92)",
+  },
+  nearTargetDot: {
+    backgroundColor: "rgba(245, 210, 58, 0.86)",
   },
   alignedTargetDot: {
     backgroundColor: "rgba(28, 235, 75, 0.92)",
