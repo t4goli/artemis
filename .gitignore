@@ -9,6 +9,7 @@ __pycache__/
 .env
 *.env.local
 uploads/
+video_frames/
 *.log
 .DS_Store
 Thumbs.db

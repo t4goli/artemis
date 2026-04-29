@@ -1,618 +1,655 @@
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { DeviceMotion, type DeviceMotionMeasurement } from "expo-sensors";
-import { StatusBar } from "expo-status-bar";
-import { useEffect, useMemo, useState } from "react";
-import { SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Animated,
+  Dimensions,
+  Easing,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
-type Target = {
+const GREEN = "#3cb450";
+const RED = "#e03030";
+const BUTTON = "#e0e0e0";
+const TEXT_MUTED = "#888888";
+const DOT_SIZE = 50;
+const RETICLE_SIZE = 64;
+const LOCK_RADIUS = 42;
+const HOLD_MS = 1000;
+const MOTION_INTERVAL_MS = 40;
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+const CENTER = { x: SCREEN_WIDTH / 2, y: SCREEN_HEIGHT / 2 };
+
+type CaptureTarget = {
   id: number;
-  yaw: number;
-  pitch: "level" | "up" | "down";
-  captured: boolean;
+  x: number;
+  y: number;
 };
 
-const initialTargets: Target[] = Array.from({ length: 16 }, (_, index) => ({
-  id: index,
-  yaw: 0,
-  pitch: "level",
-  captured: false,
-}));
+type MotionOrigin = {
+  yaw: number;
+  pitch: number;
+  roll: number;
+};
 
-const expansionTargets = [
-  { x: 0, y: 0 },
-  { x: 178, y: 0 },
-  { x: -178, y: 0 },
-  { x: 0, y: -170 },
-  { x: 0, y: 170 },
-  { x: 152, y: -122 },
-  { x: -152, y: -122 },
-  { x: 152, y: 122 },
-  { x: -152, y: 122 },
-  { x: 232, y: 0 },
-  { x: -232, y: 0 },
-  { x: 0, y: -218 },
-  { x: 0, y: 218 },
-  { x: 232, y: -160 },
-  { x: -232, y: -160 },
-  { x: 0, y: 0 },
+const TARGETS: CaptureTarget[] = [
+  { id: 0, x: 0, y: 0 },
+  { id: 1, x: 165, y: 0 },
+  { id: 2, x: -165, y: 0 },
+  { id: 3, x: 0, y: -170 },
+  { id: 4, x: 0, y: 170 },
+  { id: 5, x: 165, y: -135 },
+  { id: 6, x: -165, y: -135 },
+  { id: 7, x: 165, y: 135 },
+  { id: 8, x: -165, y: 135 },
+  { id: 9, x: 280, y: -24 },
+  { id: 10, x: -280, y: 24 },
+  { id: 11, x: 34, y: -286 },
+  { id: 12, x: -34, y: 286 },
+  { id: 13, x: 285, y: -235 },
+  { id: 14, x: -285, y: -235 },
+  { id: 15, x: 285, y: 235 },
 ];
 
-export default function App() {
-  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
-  const [captureName, setCaptureName] = useState("My memory");
-  const [isCapturing, setIsCapturing] = useState(false);
-  const [targets, setTargets] = useState(initialTargets);
-  const [activeTargetIndex, setActiveTargetIndex] = useState(0);
-  const [manualHold, setManualHold] = useState(false);
-  const [deviceRotation, setDeviceRotation] = useState({ yaw: 0, pitch: 0 });
-  const [originYaw, setOriginYaw] = useState<number | null>(null);
+function radiansToDegrees(value = 0) {
+  return (value * 180) / Math.PI;
+}
 
-  const activeTarget = targets[activeTargetIndex];
-  const capturedCount = targets.filter((target) => target.captured).length;
-  const visibleTargets = useMemo(() => {
-    return targets
-      .filter((target) => !target.captured)
-      .map((target) => ({ target, projection: projectTarget(target, deviceRotation, capturedCount) }))
-      .filter(({ projection }) => projection.visible)
-      .slice(0, 5);
-  }, [activeTarget, capturedCount, deviceRotation, targets]);
-  const activeProjection = useMemo(
-    () => projectTarget(activeTarget, deviceRotation, capturedCount),
-    [activeTarget, capturedCount, deviceRotation]
-  );
-  const alignmentDistance = Math.hypot(activeProjection.x, activeProjection.y);
-  const isAligned = activeProjection.visible && (capturedCount === 0 || alignmentDistance < 92);
-  const guidance = useMemo(() => {
-    if (!activeTarget) return "All targets captured. Ready to upload.";
-    if (activeTarget.pitch === "up") return "Tilt up and line up with the red dot.";
-    if (activeTarget.pitch === "down") return "Tilt down and line up with the red dot.";
-    return "Turn slowly until the circle meets the red dot.";
-  }, [activeTarget]);
+function shortestAngle(current: number, origin: number) {
+  let delta = current - origin;
+  while (delta > 180) delta -= 360;
+  while (delta < -180) delta += 360;
+  return delta;
+}
 
-  async function beginCapture() {
-    if (!cameraPermission?.granted) {
-      const permission = await requestCameraPermission();
-      if (!permission.granted) return;
-    }
+function motionToPose(motion: DeviceMotionMeasurement): MotionOrigin | null {
+  const rotation = motion.rotation;
+  if (!rotation) return null;
 
-    await DeviceMotion.requestPermissionsAsync();
-    DeviceMotion.setUpdateInterval(50);
-    setTargets(initialTargets);
-    setActiveTargetIndex(0);
-    setManualHold(false);
-    setOriginYaw(null);
-    setIsCapturing(true);
+  return {
+    yaw: radiansToDegrees(rotation.alpha),
+    pitch: radiansToDegrees(rotation.beta),
+    roll: radiansToDegrees(rotation.gamma),
+  };
+}
+
+function targetScreenPosition(target: CaptureTarget, pan: { x: number; y: number }) {
+  return {
+    x: CENTER.x + target.x + pan.x,
+    y: CENTER.y + target.y + pan.y,
+  };
+}
+
+function targetOffsetFromCenter(target: CaptureTarget, pan: { x: number; y: number }) {
+  const position = targetScreenPosition(target, pan);
+  return {
+    x: position.x - CENTER.x,
+    y: position.y - CENTER.y,
+  };
+}
+
+function directionText(offset: { x: number; y: number }) {
+  if (Math.abs(offset.x) > Math.abs(offset.y)) {
+    return offset.x > 0 ? "Tilt your device to the right" : "Tilt your device to the left";
   }
+
+  return offset.y > 0 ? "Tilt your device down" : "Tilt your device up";
+}
+
+export default function App() {
+  const [permission, requestPermission] = useCameraPermissions();
+  const [captureName, setCaptureName] = useState("Tokyo Tower 🚀");
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [queuedName, setQueuedName] = useState("");
+  const [capturedIds, setCapturedIds] = useState<number[]>([]);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [holdProgress, setHoldProgress] = useState(0);
+  const [showNudge, setShowNudge] = useState(false);
+  const [motionWarning, setMotionWarning] = useState(false);
+
+  const originRef = useRef<MotionOrigin | null>(null);
+  const holdStartRef = useRef<number | null>(null);
+  const activeIndexRef = useRef(0);
+  const capturedIdsRef = useRef<number[]>([]);
+  const pulse = useRef(new Animated.Value(0)).current;
+
+  const activeTarget = TARGETS[activeIndex] ?? TARGETS[TARGETS.length - 1];
+  const activeOffset = targetOffsetFromCenter(activeTarget, pan);
+  const activeDistance = Math.hypot(activeOffset.x, activeOffset.y);
+  const isLocked = activeDistance <= LOCK_RADIUS;
+  const capturedCount = capturedIds.length;
+  const progress = capturedCount / TARGETS.length;
+
+  const pulseStyle = useMemo(
+    () => ({
+      opacity: pulse.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0.7, 1],
+      }),
+      transform: [
+        {
+          scale: pulse.interpolate({
+            inputRange: [0, 1],
+            outputRange: [1, 1.18],
+          }),
+        },
+      ],
+    }),
+    [pulse],
+  );
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 650,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0,
+          duration: 650,
+          easing: Easing.in(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+
+    animation.start();
+    return () => animation.stop();
+  }, [pulse]);
+
+  useEffect(() => {
+    activeIndexRef.current = activeIndex;
+  }, [activeIndex]);
+
+  useEffect(() => {
+    capturedIdsRef.current = capturedIds;
+  }, [capturedIds]);
 
   useEffect(() => {
     if (!isCapturing) return;
 
+    DeviceMotion.setUpdateInterval(MOTION_INTERVAL_MS);
     const subscription = DeviceMotion.addListener((motion) => {
-      const nextRotation = getRotation(motion);
-      setOriginYaw((currentOrigin) => currentOrigin ?? nextRotation.yaw);
-      setDeviceRotation((currentRotation) => {
-        const yawOrigin = originYaw ?? nextRotation.yaw;
-        return {
-          yaw: normalizeDegrees(nextRotation.yaw - yawOrigin),
-          pitch: nextRotation.pitch,
-        };
+      const pose = motionToPose(motion);
+      if (!pose) return;
+
+      if (!originRef.current) {
+        originRef.current = pose;
+      }
+
+      const currentOrigin = originRef.current;
+      const yawDelta = shortestAngle(pose.yaw, currentOrigin.yaw);
+      const pitchDelta = pose.pitch - currentOrigin.pitch;
+      const rollDelta = pose.roll - currentOrigin.roll;
+
+      setPan({
+        x: -yawDelta * 6.4,
+        y: pitchDelta * 6.1,
       });
+
+      setMotionWarning(Math.abs(rollDelta) > 42);
     });
 
     return () => subscription.remove();
-  }, [isCapturing, originYaw]);
+  }, [isCapturing]);
 
-  function simulateAlignment() {
-    if (!activeTarget) return;
-    if (!manualHold && !isAligned) {
-      setManualHold(true);
+  useEffect(() => {
+    if (!isCapturing) return;
+
+    if (isLocked) {
+      setShowNudge(false);
       return;
     }
 
-    setTargets((currentTargets) =>
-      currentTargets.map((target) => (target.id === activeTarget.id ? { ...target, captured: true } : target))
-    );
-    setActiveTargetIndex((index) => Math.min(index + 1, targets.length));
-    setManualHold(false);
+    const timer = setTimeout(() => {
+      setShowNudge(true);
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [activeIndex, activeDistance, isCapturing, isLocked]);
+
+  useEffect(() => {
+    if (!isCapturing) return;
+
+    if (!isLocked) {
+      holdStartRef.current = null;
+      setHoldProgress(0);
+      return;
+    }
+
+    if (!holdStartRef.current) {
+      holdStartRef.current = Date.now();
+    }
+
+    const timer = setInterval(() => {
+      const start = holdStartRef.current ?? Date.now();
+      const nextProgress = Math.min(1, (Date.now() - start) / HOLD_MS);
+      setHoldProgress(nextProgress);
+
+      if (nextProgress >= 1) {
+        holdStartRef.current = null;
+        completeCurrentTarget();
+      }
+    }, 40);
+
+    return () => clearInterval(timer);
+  }, [isCapturing, isLocked, activeIndex]);
+
+  async function beginCapture() {
+    if (!permission?.granted) {
+      const nextPermission = await requestPermission();
+      if (!nextPermission.granted) return;
+    }
+
+    await DeviceMotion.requestPermissionsAsync();
+    originRef.current = null;
+    setPan({ x: 0, y: 0 });
+    setCapturedIds([]);
+    setActiveIndex(0);
+    setHoldProgress(0);
+    setShowNudge(false);
+    setMotionWarning(false);
+    setIsCapturing(true);
   }
 
-  if (!isCapturing) {
-    return (
-      <SafeAreaView style={styles.screen}>
-        <StatusBar style="light" />
-        <View style={styles.captureTab}>
-          <Text style={styles.eyebrow}>Capture</Text>
-          <Text style={styles.title}>Artemis</Text>
-          <Text style={styles.subtitle}>Name a memory, then follow the dots to capture a full 360.</Text>
+  function leaveCapture() {
+    setIsCapturing(false);
+    setHoldProgress(0);
+    setShowNudge(false);
+  }
 
-          <View style={styles.formCard}>
-            <Text style={styles.label}>Capture name</Text>
-            <TextInput
-              value={captureName}
-              onChangeText={setCaptureName}
-              placeholder="Kitchen sunset"
-              placeholderTextColor="#687789"
-              style={styles.input}
-            />
+  function completeCurrentTarget() {
+    const currentIndex = activeIndexRef.current;
+    const currentTarget = TARGETS[currentIndex];
+    const currentCaptured = capturedIdsRef.current;
+
+    if (!currentTarget || currentCaptured.includes(currentTarget.id)) return;
+
+    const nextCaptured = [...currentCaptured, currentTarget.id];
+    capturedIdsRef.current = nextCaptured;
+    setCapturedIds(nextCaptured);
+    setHoldProgress(0);
+
+    if (nextCaptured.length >= TARGETS.length) {
+      setQueuedName(captureName.trim() || "Untitled capture");
+      setIsCapturing(false);
+      return;
+    }
+
+    const nextIndex = TARGETS.findIndex((target) => !nextCaptured.includes(target.id));
+    activeIndexRef.current = nextIndex === -1 ? currentIndex : nextIndex;
+    setActiveIndex(nextIndex === -1 ? currentIndex : nextIndex);
+  }
+
+  if (isCapturing) {
+    return (
+      <View style={styles.captureScreen}>
+        <CameraView style={styles.cameraFrame} facing="back" autofocus="on" />
+
+        <View style={styles.targetLayer} pointerEvents="none">
+          {TARGETS.map((target, index) => {
+            const position = targetScreenPosition(target, pan);
+            const captured = capturedIds.includes(target.id);
+            const current = index === activeIndex;
+            const dotColor = motionWarning && !captured ? RED : GREEN;
+            const dot = (
+              <Animated.View
+                key={target.id}
+                style={[
+                  styles.dot,
+                  {
+                    left: position.x - DOT_SIZE / 2,
+                    top: position.y - DOT_SIZE / 2,
+                    backgroundColor: dotColor,
+                    opacity: captured ? 0.4 : 1,
+                  },
+                  current ? pulseStyle : null,
+                ]}
+              />
+            );
+
+            return dot;
+          })}
+
+          <View style={styles.reticleWrap}>
+            <View style={styles.reticle}>
+              <View
+                style={[
+                  styles.reticleFill,
+                  {
+                    transform: [{ scale: Math.max(0.02, holdProgress) }],
+                    opacity: holdProgress > 0 ? 0.92 : 0,
+                  },
+                ]}
+              />
+            </View>
+            <Text
+              style={[
+                styles.chevron,
+                {
+                  transform: [{ rotate: `${Math.atan2(activeOffset.y, activeOffset.x)}rad` }],
+                },
+              ]}
+            >
+              ›
+            </Text>
+          </View>
+        </View>
+
+        <SafeAreaView style={styles.captureChrome} pointerEvents="box-none">
+          <View style={styles.topControls}>
+            <TouchableOpacity style={styles.backButton} onPress={leaveCapture}>
+              <Text style={styles.backButtonText}>↩</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.closeButton} onPress={leaveCapture}>
+              <Text style={styles.closeButtonText}>×</Text>
+            </TouchableOpacity>
           </View>
 
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryTitle}>Capture plan</Text>
-            <Text style={styles.summaryText}>16 guided targets using the phone camera, motion tracking, and locked exposure.</Text>
-            <View style={styles.planRow}>
-              <Text style={styles.planValue}>10</Text>
-              <Text style={styles.planLabel}>level</Text>
-              <Text style={styles.planValue}>3</Text>
-              <Text style={styles.planLabel}>ceiling</Text>
-              <Text style={styles.planValue}>3</Text>
-              <Text style={styles.planLabel}>floor</Text>
+          {showNudge ? (
+            <View style={styles.nudge}>
+              <View style={styles.tiltIcon}>
+                <View style={styles.phoneTilt} />
+              </View>
+              <Text style={styles.nudgeText}>{directionText(activeOffset)}</Text>
+            </View>
+          ) : null}
+
+          <View style={styles.instructionWrap}>
+            <Text style={styles.instructionText}>
+              {motionWarning
+                ? "Return to your original spot before capturing."
+                : capturedCount === 0
+                  ? "Point your device at the blue target"
+                  : "Shoot all photos from the same spot as your initial photo to ensure an optimal result."}
+            </Text>
+          </View>
+
+          <View style={styles.progressWrap}>
+            <Text style={styles.progressCount}>
+              {capturedCount} of {TARGETS.length}
+            </Text>
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressBar, { width: `${progress * 100}%` }]} />
             </View>
           </View>
-
-          <TouchableOpacity style={styles.primaryButton} activeOpacity={0.88} onPress={beginCapture}>
-            <Text style={styles.primaryButtonText}>Begin capture</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
+        </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.captureScreen}>
-      <StatusBar style="light" />
-      <View style={styles.captureStage}>
-        <View style={styles.captureTopBar}>
-          <TouchableOpacity onPress={() => setIsCapturing(false)} style={styles.roundButton}>
-            <Text style={styles.roundButtonText}>‹</Text>
+    <SafeAreaView style={styles.homeScreen}>
+      <View style={styles.homeContent}>
+        <Text style={styles.heading}>Capture</Text>
+
+        <View style={styles.form}>
+          <Text style={styles.label}>Name</Text>
+          <TextInput
+            style={styles.input}
+            value={captureName}
+            onChangeText={setCaptureName}
+            placeholder="Tokyo Tower 🚀"
+            placeholderTextColor={TEXT_MUTED}
+          />
+
+          <TouchableOpacity style={styles.primaryButton} onPress={beginCapture}>
+            <Text style={styles.buttonText}>Begin capture</Text>
           </TouchableOpacity>
-          <View style={styles.topCenterDot} />
-          <TouchableOpacity onPress={() => setIsCapturing(false)} style={[styles.roundButton, styles.exitButton]}>
-            <Text style={styles.exitButtonText}>×</Text>
+
+          <Text style={styles.orText}>or</Text>
+
+          <TouchableOpacity style={styles.primaryButton}>
+            <Text style={styles.buttonText}>Import 360° photo</Text>
           </TouchableOpacity>
-        </View>
 
-        <View style={styles.tiltPrompt}>
-          <View style={styles.tiltIcon}>
-            <Text style={styles.tiltIconText}>▰</Text>
-          </View>
-          <Text style={styles.tiltText}>{tiltPrompt(activeProjection.y)}</Text>
-        </View>
-
-        <View style={styles.worldViewport}>
-          {capturedCount > 0 && (
-            <View
-              style={[
-                styles.capturedPlane,
-                {
-                  transform: [
-                    { perspective: 900 },
-                    { rotateZ: `${clamp(shortestAngle(deviceRotation.yaw) * -0.06, -12, 12)}deg` },
-                    { rotateY: `${clamp(shortestAngle(deviceRotation.yaw) * -0.12, -18, 18)}deg` },
-                  ],
-                },
-              ]}
-            >
-              {cameraPermission?.granted ? (
-                <CameraView
-                  style={styles.liveCamera}
-                  facing="back"
-                  mode="picture"
-                  autofocus="on"
-                  selectedLens="builtInWideAngleCamera"
-                  responsiveOrientationWhenOrientationLocked
-                />
-              ) : (
-                <View style={styles.blackPreview}>
-                  <Text style={styles.previewText}>Camera permission needed</Text>
-                </View>
-              )}
+          {queuedName ? (
+            <View style={styles.queuedCard}>
+              <Text style={styles.queuedTitle}>{queuedName}</Text>
+              <Text style={styles.queuedStatus}>Enqueued</Text>
             </View>
-          )}
-
-          {capturedCount === 0 && (
-            <View style={styles.firstCaptureFrame}>
-              {cameraPermission?.granted ? (
-                <CameraView
-                  style={styles.liveCamera}
-                  facing="back"
-                  mode="picture"
-                  autofocus="on"
-                  selectedLens="builtInWideAngleCamera"
-                  responsiveOrientationWhenOrientationLocked
-                />
-              ) : (
-                <View style={styles.blackPreview}>
-                  <Text style={styles.previewText}>Camera permission needed</Text>
-                </View>
-              )}
-            </View>
-          )}
-
-          <View style={styles.aimLayer}>
-            {visibleTargets.map(({ target, projection }) => (
-              <View
-                key={target.id}
-                style={[
-                  styles.targetDot,
-                  target.id !== activeTarget?.id && styles.inactiveTargetDot,
-                  target.id === activeTarget?.id && capturedCount === 0 && styles.firstTargetDot,
-                  target.id === activeTarget?.id && capturedCount > 0 && styles.activeTargetDot,
-                  target.id === activeTarget?.id && alignmentDistance < 138 && styles.nearTargetDot,
-                  target.id === activeTarget?.id && isAligned && styles.alignedTargetDot,
-                  { transform: [{ translateX: projection.x }, { translateY: projection.y }] },
-                ]}
-              />
-            ))}
-            {!activeProjection.visible && <Text style={styles.directionChevron}>{activeProjection.angleX > 0 ? "›" : "‹"}</Text>}
-            <View style={[styles.deviceCircle, isAligned && styles.deviceCircleAligned]}>
-              {isAligned && <View style={styles.holdWedge} />}
-            </View>
-          </View>
-        </View>
-
-        <Text style={styles.bottomInstruction}>
-          {capturedCount === 0
-            ? "Point your device at the green target"
-            : "Shoot all photos from the same spot as your initial photo to ensure an optimal result."}
-        </Text>
-
-        <View style={styles.progressRow}>
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${Math.max(4, (capturedCount / targets.length) * 100)}%` }]} />
-          </View>
-          <Text style={styles.progressText}>
-            {capturedCount} of {targets.length}
-          </Text>
+          ) : null}
         </View>
       </View>
-
-      <TouchableOpacity style={styles.primaryButton} activeOpacity={0.88} onPress={simulateAlignment}>
-        <Text style={styles.primaryButtonText}>{isAligned || manualHold ? "Simulate capture" : "Skip to capture"}</Text>
-      </TouchableOpacity>
     </SafeAreaView>
   );
 }
 
-function getRotation(motion: DeviceMotionMeasurement) {
-  return {
-    yaw: normalizeDegrees(toDegrees(motion.rotation.alpha)),
-    pitch: clamp(toDegrees(motion.rotation.beta), -75, 75),
-  };
-}
-
-function projectTarget(target: Target | undefined, rotation: { yaw: number; pitch: number }, capturedCount: number) {
-  if (!target) return { x: 0, y: 0, angleX: 0, angleY: 0, visible: false };
-  if (capturedCount === 0) {
-    return { x: 0, y: 0, angleX: 0, angleY: 0, visible: true };
-  }
-
-  const expansion = expansionTargets[target.id] ?? { x: 0, y: 0 };
-  const wobbleX = Math.sin((rotation.yaw * Math.PI) / 180) * 24;
-  const wobbleY = Math.sin((rotation.pitch * Math.PI) / 90) * 22;
-  const x = expansion.x - wobbleX;
-  const y = expansion.y + wobbleY;
-  return {
-    x,
-    y,
-    angleX: x / 12,
-    angleY: y / 12,
-    visible: Math.abs(x) < 260 && Math.abs(y) < 250,
-  };
-}
-
-function toDegrees(value: number) {
-  return Math.abs(value) <= Math.PI * 2 ? (value * 180) / Math.PI : value;
-}
-
-function normalizeDegrees(value: number) {
-  return ((value % 360) + 360) % 360;
-}
-
-function shortestAngle(value: number) {
-  const normalized = ((value + 180) % 360) - 180;
-  return normalized < -180 ? normalized + 360 : normalized;
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
-}
-
-function tiltPrompt(offsetY: number) {
-  if (offsetY < -50) return "Tilt your device up";
-  if (offsetY > 50) return "Tilt your device down";
-  return "Point your device at the target";
-}
-
 const styles = StyleSheet.create({
-  screen: {
+  homeScreen: {
     flex: 1,
-    backgroundColor: "#0b0f14",
+    backgroundColor: "#ffffff",
   },
-  captureTab: {
+  homeContent: {
     flex: 1,
-    padding: 22,
-    gap: 18,
-    justifyContent: "center",
+    paddingHorizontal: 24,
+    paddingTop: 34,
   },
-  eyebrow: {
-    color: "#89b6ff",
-    fontSize: 13,
+  heading: {
+    color: "#000000",
+    fontSize: 36,
     fontWeight: "800",
     letterSpacing: 0,
-    textTransform: "uppercase",
+    marginBottom: 30,
   },
-  title: {
-    color: "#f7fbff",
-    fontSize: 42,
-    fontWeight: "900",
-    letterSpacing: 0,
-  },
-  subtitle: {
-    color: "#aab6c4",
-    fontSize: 16,
-    lineHeight: 23,
-  },
-  formCard: {
-    gap: 8,
+  form: {
+    gap: 14,
   },
   label: {
-    color: "#c8d3df",
+    color: "#000000",
     fontSize: 14,
-    fontWeight: "800",
+    fontWeight: "700",
   },
   input: {
-    minHeight: 54,
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    color: "#f7fbff",
-    backgroundColor: "#121a23",
+    backgroundColor: BUTTON,
+    borderRadius: 999,
+    color: "#000000",
+    fontSize: 16,
+    minHeight: 52,
+    paddingHorizontal: 22,
+  },
+  primaryButton: {
+    alignItems: "center",
+    backgroundColor: BUTTON,
+    borderRadius: 999,
+    justifyContent: "center",
+    minHeight: 52,
+    paddingHorizontal: 22,
+  },
+  buttonText: {
+    color: "#000000",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  orText: {
+    alignSelf: "center",
+    color: "#000000",
+    fontSize: 15,
+    marginVertical: 2,
+  },
+  queuedCard: {
+    borderColor: BUTTON,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#263443",
+    marginTop: 18,
+    padding: 18,
+  },
+  queuedTitle: {
+    color: "#000000",
     fontSize: 17,
     fontWeight: "700",
   },
-  summaryCard: {
-    padding: 16,
-    borderRadius: 8,
-    gap: 10,
-    backgroundColor: "#121a23",
-    borderWidth: 1,
-    borderColor: "#263443",
-  },
-  summaryTitle: {
-    color: "#f7fbff",
-    fontSize: 18,
-    fontWeight: "900",
-  },
-  summaryText: {
-    color: "#9eabb9",
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  planRow: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: 8,
-  },
-  planValue: {
-    color: "#f3c04d",
-    fontSize: 24,
-    fontWeight: "900",
-  },
-  planLabel: {
-    color: "#aab6c4",
+  queuedStatus: {
+    color: TEXT_MUTED,
     fontSize: 13,
-    fontWeight: "800",
-    marginRight: 6,
-  },
-  primaryButton: {
-    minHeight: 56,
-    marginHorizontal: 18,
-    marginBottom: 18,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#f3c04d",
-  },
-  primaryButtonText: {
-    color: "#141007",
-    fontSize: 16,
-    fontWeight: "900",
+    fontWeight: "600",
+    marginTop: 5,
   },
   captureScreen: {
-    flex: 1,
-    backgroundColor: "#05070a",
-  },
-  captureStage: {
-    flex: 1,
+    alignItems: "center",
     backgroundColor: "#000000",
-    paddingHorizontal: 22,
-    paddingTop: 18,
-    paddingBottom: 10,
+    flex: 1,
+    justifyContent: "center",
   },
-  liveCamera: {
+  cameraFrame: {
+    aspectRatio: 0.75,
+    borderColor: "#ffffff",
+    borderWidth: 1.5,
+    overflow: "hidden",
+    width: "72%",
+  },
+  targetLayer: {
     ...StyleSheet.absoluteFillObject,
   },
-  blackPreview: {
-    flex: 1,
+  dot: {
+    borderRadius: DOT_SIZE / 2,
+    height: DOT_SIZE,
+    position: "absolute",
+    width: DOT_SIZE,
+  },
+  reticleWrap: {
     alignItems: "center",
+    height: RETICLE_SIZE,
     justifyContent: "center",
-    backgroundColor: "#000000",
+    left: CENTER.x - RETICLE_SIZE / 2,
+    position: "absolute",
+    top: CENTER.y - RETICLE_SIZE / 2,
+    width: RETICLE_SIZE,
   },
-  previewText: {
-    color: "#e9eef5",
-    fontSize: 22,
-    fontWeight: "900",
+  reticle: {
+    alignItems: "center",
+    borderColor: "#ffffff",
+    borderRadius: RETICLE_SIZE / 2,
+    borderWidth: 2.5,
+    height: RETICLE_SIZE,
+    justifyContent: "center",
+    overflow: "hidden",
+    width: RETICLE_SIZE,
   },
-  previewSubtext: {
-    color: "#6f7b89",
-    fontSize: 14,
-    marginTop: 8,
-    textAlign: "center",
-    paddingHorizontal: 36,
+  reticleFill: {
+    backgroundColor: GREEN,
+    borderRadius: RETICLE_SIZE / 2,
+    height: RETICLE_SIZE,
+    width: RETICLE_SIZE,
   },
-  aimLayer: {
+  chevron: {
+    color: "#ffffff",
+    fontSize: 54,
+    fontWeight: "300",
+    left: RETICLE_SIZE + 9,
+    lineHeight: 54,
+    position: "absolute",
+  },
+  captureChrome: {
     ...StyleSheet.absoluteFillObject,
+  },
+  topControls: {
     alignItems: "center",
-    justifyContent: "center",
-  },
-  targetDot: {
-    position: "absolute",
-    width: 62,
-    height: 62,
-    borderRadius: 31,
-    backgroundColor: "rgba(28, 220, 70, 0.72)",
-  },
-  firstTargetDot: {
-    backgroundColor: "rgba(28, 235, 75, 0.92)",
-  },
-  activeTargetDot: {
-    backgroundColor: "rgba(255, 64, 72, 0.92)",
-  },
-  inactiveTargetDot: {
-    backgroundColor: "rgba(28, 220, 70, 0.62)",
-  },
-  nearTargetDot: {
-    backgroundColor: "rgba(245, 210, 58, 0.86)",
-  },
-  alignedTargetDot: {
-    backgroundColor: "rgba(28, 235, 75, 0.92)",
-  },
-  deviceCircle: {
-    position: "absolute",
-    width: 82,
-    height: 82,
-    borderRadius: 41,
-    borderWidth: 5,
-    borderColor: "#ffffff",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  deviceCircleAligned: {
-    borderColor: "#ffffff",
-  },
-  holdWedge: {
-    width: 46,
-    height: 46,
-    borderTopLeftRadius: 46,
-    backgroundColor: "rgba(28, 235, 75, 0.78)",
-  },
-  captureTopBar: {
-    minHeight: 58,
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    paddingHorizontal: 28,
+    paddingTop: 20,
   },
-  roundButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+  backButton: {
     alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.92)",
+    borderRadius: 27,
+    height: 54,
     justifyContent: "center",
-    backgroundColor: "#ffffff",
+    width: 54,
   },
-  roundButtonText: {
-    color: "#05070a",
-    fontSize: 44,
-    fontWeight: "900",
-    lineHeight: 48,
+  backButtonText: {
+    color: "#000000",
+    fontSize: 34,
+    fontWeight: "700",
+    marginTop: -2,
   },
-  topCenterDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#2dea5a",
-  },
-  exitButton: {
-    backgroundColor: "#ff252d",
-  },
-  exitButtonText: {
-    color: "#030303",
-    fontSize: 44,
-    fontWeight: "900",
-    lineHeight: 48,
-  },
-  tiltPrompt: {
-    minHeight: 108,
+  closeButton: {
     alignItems: "center",
+    backgroundColor: "#ff1f1f",
+    borderRadius: 27,
+    height: 54,
     justifyContent: "center",
-    gap: 10,
+    width: 54,
+  },
+  closeButtonText: {
+    color: "#ffffff",
+    fontSize: 34,
+    fontWeight: "600",
+    marginTop: -4,
+  },
+  nudge: {
+    alignItems: "center",
+    alignSelf: "center",
+    gap: 8,
+    marginTop: 18,
   },
   tiltIcon: {
-    width: 74,
-    height: 74,
+    alignItems: "center",
+    borderColor: "#ffffff",
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#ffffff",
-    alignItems: "center",
+    height: 56,
     justifyContent: "center",
+    width: 56,
   },
-  tiltIconText: {
+  phoneTilt: {
+    backgroundColor: "#ffffff",
+    borderRadius: 4,
+    height: 32,
+    transform: [{ rotate: "-38deg" }],
+    width: 20,
+  },
+  nudgeText: {
     color: "#ffffff",
-    fontSize: 36,
-    transform: [{ rotate: "-45deg" }],
+    fontSize: 21,
+    fontWeight: "400",
   },
-  tiltText: {
-    color: "#ffffff",
-    fontSize: 22,
-    textAlign: "center",
-  },
-  worldViewport: {
-    flex: 1,
+  instructionWrap: {
     alignItems: "center",
-    justifyContent: "center",
-  },
-  firstCaptureFrame: {
-    width: "82%",
-    aspectRatio: 0.76,
-    borderWidth: 1,
-    borderColor: "#ffffff",
-    overflow: "hidden",
-    backgroundColor: "#0a0a0a",
-  },
-  capturedPlane: {
-    width: "108%",
-    aspectRatio: 0.76,
-    borderWidth: 1,
-    borderColor: "#ffffff",
-    overflow: "hidden",
-    backgroundColor: "#0a0a0a",
-  },
-  directionChevron: {
+    bottom: 126,
+    left: 36,
     position: "absolute",
-    color: "#ffffff",
-    fontSize: 60,
-    fontWeight: "300",
-    transform: [{ translateX: 72 }],
+    right: 36,
   },
-  bottomInstruction: {
-    minHeight: 82,
+  instructionText: {
+    color: "#ffffff",
+    fontSize: 21,
+    fontWeight: "400",
+    lineHeight: 27,
+    textAlign: "center",
+  },
+  progressWrap: {
+    bottom: 28,
+    left: 24,
+    position: "absolute",
+    right: 24,
+  },
+  progressCount: {
+    alignSelf: "flex-end",
     color: "#ffffff",
     fontSize: 22,
-    lineHeight: 30,
-    textAlign: "center",
-    paddingHorizontal: 8,
-  },
-  progressRow: {
-    minHeight: 44,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+    fontWeight: "500",
+    marginBottom: 7,
   },
   progressTrack: {
-    flex: 1,
-    height: 20,
-    borderRadius: 10,
-    overflow: "hidden",
     backgroundColor: "#ffffff",
+    borderRadius: 999,
+    height: 8,
+    overflow: "hidden",
   },
-  progressFill: {
+  progressBar: {
+    backgroundColor: GREEN,
     height: "100%",
-    backgroundColor: "#28dd5d",
-  },
-  progressText: {
-    color: "#ffffff",
-    fontSize: 20,
-    fontWeight: "700",
   },
 });
