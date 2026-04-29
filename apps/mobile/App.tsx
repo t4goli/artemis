@@ -13,10 +13,29 @@ type Target = {
 
 const initialTargets: Target[] = Array.from({ length: 16 }, (_, index) => ({
   id: index,
-  yaw: Math.round(index * 22.5),
-  pitch: index < 10 ? "level" : index < 13 ? "up" : "down",
+  yaw: 0,
+  pitch: "level",
   captured: false,
 }));
+
+const expansionTargets = [
+  { x: 0, y: 0 },
+  { x: 124, y: 0 },
+  { x: -124, y: 0 },
+  { x: 0, y: -132 },
+  { x: 0, y: 132 },
+  { x: 124, y: -96 },
+  { x: -124, y: -96 },
+  { x: 124, y: 96 },
+  { x: -124, y: 96 },
+  { x: 170, y: 0 },
+  { x: -170, y: 0 },
+  { x: 0, y: -174 },
+  { x: 0, y: 174 },
+  { x: 170, y: -124 },
+  { x: -170, y: -124 },
+  { x: 0, y: 0 },
+];
 
 export default function App() {
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
@@ -31,20 +50,18 @@ export default function App() {
   const activeTarget = targets[activeTargetIndex];
   const capturedCount = targets.filter((target) => target.captured).length;
   const visibleTargets = useMemo(() => {
-    if (capturedCount === 0) {
-      const targetProjection = projectTarget(activeTarget, deviceRotation);
-      return activeTarget ? [{ target: activeTarget, projection: targetProjection }] : [];
-    }
-
     return targets
       .filter((target) => !target.captured)
-      .map((target) => ({ target, projection: projectTarget(target, deviceRotation) }))
+      .map((target) => ({ target, projection: projectTarget(target, deviceRotation, capturedCount) }))
       .filter(({ projection }) => projection.visible)
       .slice(0, 5);
   }, [activeTarget, capturedCount, deviceRotation, targets]);
-  const activeProjection = useMemo(() => projectTarget(activeTarget, deviceRotation), [activeTarget, deviceRotation]);
+  const activeProjection = useMemo(
+    () => projectTarget(activeTarget, deviceRotation, capturedCount),
+    [activeTarget, capturedCount, deviceRotation]
+  );
   const alignmentDistance = Math.hypot(activeProjection.x, activeProjection.y);
-  const isAligned = activeProjection.visible && alignmentDistance < 86;
+  const isAligned = activeProjection.visible && (capturedCount === 0 || alignmentDistance < 92);
   const guidance = useMemo(() => {
     if (!activeTarget) return "All targets captured. Ready to upload.";
     if (activeTarget.pitch === "up") return "Tilt up and line up with the red dot.";
@@ -261,24 +278,21 @@ function getRotation(motion: DeviceMotionMeasurement) {
   };
 }
 
-function projectTarget(target: Target | undefined, rotation: { yaw: number; pitch: number }) {
+function projectTarget(target: Target | undefined, rotation: { yaw: number; pitch: number }, capturedCount: number) {
   if (!target) return { x: 0, y: 0, angleX: 0, angleY: 0, visible: false };
-  const pitchTargets = {
-    level: 0,
-    up: 42,
-    down: -42,
-  };
-  const angleX = shortestAngle(target.yaw - rotation.yaw);
-  const angleY = rotation.pitch - pitchTargets[target.pitch];
-  const fieldOfViewX = 54;
-  const fieldOfViewY = 66;
-  const visible = Math.abs(angleX) <= fieldOfViewX && Math.abs(angleY) <= fieldOfViewY;
+  if (capturedCount === 0) {
+    return { x: 0, y: 0, angleX: 0, angleY: 0, visible: true };
+  }
+
+  const expansion = expansionTargets[target.id] ?? { x: 0, y: 0 };
+  const wobbleX = Math.sin((rotation.yaw * Math.PI) / 180) * 24;
+  const wobbleY = Math.sin((rotation.pitch * Math.PI) / 90) * 22;
   return {
-    x: (angleX / fieldOfViewX) * 160,
-    y: (angleY / fieldOfViewY) * 205,
-    angleX,
-    angleY,
-    visible,
+    x: expansion.x - wobbleX,
+    y: expansion.y + wobbleY,
+    angleX: (expansion.x - wobbleX) / 12,
+    angleY: (expansion.y + wobbleY) / 12,
+    visible: true,
   };
 }
 
