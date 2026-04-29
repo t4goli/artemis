@@ -1,4 +1,4 @@
-# Memory 360 Prototype
+# Artemis
 
 A local prototype for guided phone capture and 360-style viewing of a place or moment.
 
